@@ -1,15 +1,30 @@
-# URLScan.io Firefox Extension
+# Security Tools Firefox Extension
 
-A professional Firefox extension that allows users to quickly submit URLs for security analysis using urlscan.io's powerful scanning service.
+A professional Firefox extension that integrates multiple security analysis tools directly into your browser's context menu. Analyze links with URLScan.io, manage DNS filtering with NextDNS, and more.
 
 ## Features
 
-- 🔒 **Right-Click Security Scanning**: Context menu integration for quick URL scanning
-- ⚙️ **Customizable Settings**: Configure API key, scan visibility, and custom tags
-- 🎨 **Professional UI**: Modern, clean interface matching urlscan.io branding
+- 🔒 **URLScan.io Integration**: Comprehensive website security scanning
+- 🛡️ **NextDNS Integration**: DNS-level blocklist/allowlist management  
+- 📱 **Multi-Profile Support**: Manage multiple NextDNS profiles
+- ⚙️ **Easy Configuration**: Simple settings page with real-time validation
+- 🎨 **Professional UI**: Modern, clean interface
 - 🔐 **Secure Storage**: API keys stored locally in Firefox's secure storage
-- 📊 **Automatic Results**: Opens scan results automatically when ready
-- 🏷️ **Custom Tagging**: Organize your scans with custom tags
+- 📊 **Extensible**: More security tools coming soon
+
+## Current Integrations
+
+### 1. URLScan.io
+- Detailed website security analysis
+- Screenshot and HTTP request inspection
+- Malware and phishing detection
+- Automatic result opening
+
+### 2. NextDNS  
+- Add domains to blocklists (DNS-level blocking)
+- Add domains to allowlists (ensure access)
+- Dynamic profile selection
+- Instant network-wide protection
 
 ## Installation
 
@@ -27,20 +42,35 @@ A professional Firefox extension that allows users to quickly submit URLs for se
 
 ## Setup
 
-1. **Get an API Key**: 
-   - Register at [urlscan.io](https://urlscan.io/user/signup)
-   - Generate your API key from your [profile page](https://urlscan.io/user/profile/)
+### 1. Get API Keys
 
-2. **Configure Extension**:
-   - Click the URLScan.io extension icon in your Firefox toolbar
-   - Enter your API key
-   - Choose scan visibility (Public/Unlisted/Private)
-   - Optionally customize tags (default: `firefox, extension`)
+**URLScan.io:**
+- Register at [urlscan.io](https://urlscan.io/user/signup)
+- Get your API key from [profile page](https://urlscan.io/user/profile/)
 
-3. **Start Scanning**:
-   - Right-click any link on a webpage
-   - Select "Scan with urlscan.io"
-   - Wait for the scan to complete (results open automatically)
+**NextDNS (Optional):**
+- Register at [NextDNS](https://my.nextdns.io/signup)
+- Get your API key from [account settings](https://my.nextdns.io/account)
+
+### 2. Configure Extension
+
+- Click the extension icon in your Firefox toolbar
+- Enter your URLScan.io API key
+- (Optional) Enter your NextDNS API key
+- Choose scan visibility (Public/Unlisted/Private)
+- Customize tags (default: `firefox, extension`)
+- Click "Save All Settings"
+
+### 3. Start Using
+
+**URLScan.io:**
+- Right-click any link → Security Analysis → Scan with URLScan.io
+- Wait for scan to complete (results open automatically)
+
+**NextDNS:**
+- Right-click any link → Security Analysis → NextDNS
+- Choose "Add to Blocklist" or "Add to Allowlist"
+- Select which profile to add the domain to
 
 ## Technical Details
 
@@ -110,7 +140,17 @@ To test the extension:
 
 ## Changelog
 
-### Version 1.1.0 (Current)
+### Version 1.2.0 (Current)
+- ✨ Added NextDNS integration
+- ✨ Added blocklist/allowlist management
+- ✨ Dynamic profile loading and selection
+- ✨ Reorganized context menu with "Security Analysis" parent
+- ✨ Added profile display in settings
+- 🎨 Enhanced UI with NextDNS configuration
+- 📝 Comprehensive documentation for NextDNS
+- 🔄 Menu structure supports future integrations
+
+### Version 1.1.0
 - ✨ Upgraded to Manifest V3
 - ✨ Added customizable tags feature (defaults: firefox, extension)
 - 🐛 Fixed polling delay bug
@@ -134,6 +174,8 @@ To test the extension:
 **Powered by**: 
 - [urlscan.io](https://urlscan.io/) - Website security scanner
 - [urlscan.io API](https://urlscan.io/docs/api/) - Public API
+- [NextDNS](https://nextdns.io/) - DNS-level security and privacy
+- [NextDNS API](https://nextdns.github.io/api/) - Public API
 
 ## License
 

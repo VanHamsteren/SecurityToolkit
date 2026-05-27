@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>URLScan.io Extension - Settings</title>
+        <title>Security Tools Extension - Settings</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <style>
             * {
@@ -22,7 +22,7 @@
             }
 
             .container {
-                max-width: 800px;
+                max-width: 900px;
                 margin: 0 auto;
                 background: white;
                 border-radius: 16px;
@@ -100,16 +100,29 @@
             }
 
             .form-section {
-                margin-bottom: 30px;
+                margin-bottom: 40px;
+                padding-bottom: 30px;
+                border-bottom: 2px solid #f3f4f6;
+            }
+
+            .form-section:last-of-type {
+                border-bottom: none;
             }
 
             .form-section h2 {
                 color: #1e3a8a;
-                font-size: 20px;
+                font-size: 22px;
                 font-weight: 600;
+                margin-bottom: 8px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            .form-section .section-description {
+                color: #6b7280;
+                font-size: 14px;
                 margin-bottom: 20px;
-                padding-bottom: 10px;
-                border-bottom: 2px solid #e5e7eb;
             }
 
             .form-group {
@@ -204,6 +217,37 @@
 
             .error-message.show {
                 display: block;
+            }
+
+            .profiles-info {
+                background: #f0fdf4;
+                border: 2px solid #86efac;
+                border-radius: 8px;
+                padding: 16px;
+                margin-top: 12px;
+                display: none;
+            }
+
+            .profiles-info.show {
+                display: block;
+            }
+
+            .profiles-info h4 {
+                color: #166534;
+                font-size: 14px;
+                font-weight: 600;
+                margin-bottom: 8px;
+            }
+
+            .profiles-info ul {
+                list-style: none;
+                padding: 0;
+            }
+
+            .profiles-info li {
+                color: #166534;
+                padding: 4px 0;
+                font-size: 14px;
             }
 
             .button-group {
@@ -331,6 +375,86 @@
             .footer a:hover {
                 text-decoration: underline;
             }
+
+            .badge {
+                display: inline-block;
+                background: #dbeafe;
+                color: #1e40af;
+                padding: 4px 12px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 600;
+                margin-left: 10px;
+            }
+
+            .badge.coming-soon {
+                background: #fef3c7;
+                color: #92400e;
+            }
+
+            .queue-item {
+                background: white;
+                border: 1px solid #e5e7eb;
+                border-radius: 6px;
+                padding: 12px;
+                margin-bottom: 8px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+            }
+
+            .queue-item-url {
+                flex: 1;
+                font-size: 13px;
+                color: #374151;
+                word-break: break-all;
+                font-family: monospace;
+            }
+
+            .queue-item-status {
+                font-size: 12px;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-weight: 500;
+                white-space: nowrap;
+            }
+
+            .queue-item-status.pending {
+                background: #dbeafe;
+                color: #1e40af;
+            }
+
+            .queue-item-status.scanning {
+                background: #fef3c7;
+                color: #92400e;
+            }
+
+            .queue-item-status.completed {
+                background: #d1fae5;
+                color: #065f46;
+            }
+
+            .queue-item-status.failed {
+                background: #fee2e2;
+                color: #991b1b;
+            }
+
+            .queue-item-remove {
+                background: none;
+                border: none;
+                color: #ef4444;
+                cursor: pointer;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 18px;
+                line-height: 1;
+                transition: background 0.2s;
+            }
+
+            .queue-item-remove:hover {
+                background: #fee2e2;
+            }
         </style>
     </head>
 
@@ -339,39 +463,38 @@
             <div class="header">
                 <h1>
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
-                    URLScan.io Extension Settings
+                    Security Tools Extension
                 </h1>
-                <p>Configure your security scanning preferences</p>
+                <p>Manage your security integrations</p>
             </div>
 
             <div class="content">
                 <div class="info-box">
-                    <h2>🔒 About This Extension</h2>
+                    <h2>🛡️ About This Extension</h2>
                     <p>
-                        This extension allows you to submit URLs for professional security assessment using
-                        <strong>urlscan.io</strong>. To use this feature, you need to register for an account and obtain an API key.
-                    </p>
-                    <ul>
-                        <li>
-                            📝 <strong>Register:</strong>
-                            <a href="https://urlscan.io/user/signup" target="_blank">Create Account</a>
-                        </li>
-                        <li>
-                            🔑 <strong>API Key:</strong>
-                            <a href="https://urlscan.io/user/profile/" target="_blank">Get Your API Key</a>
-                        </li>
-                    </ul>
-                    <p style="margin-top: 12px; font-size: 13px;">
-                        <strong>Privacy:</strong> Your API key is stored locally in Firefox's secure storage and is never shared with third parties.
+                        This extension integrates multiple security tools directly into your browser's context menu.
+                        Right-click any link to analyze it with URLScan.io, manage it with NextDNS, and more.
                     </p>
                 </div>
 
                 <form id="settingsForm">
+                    <!-- URLScan.io Section -->
                     <div class="form-section">
-                        <h2>API Configuration</h2>
+                        <h2>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                            </svg>
+                            URLScan.io Configuration
+                        </h2>
+                        <p class="section-description">
+                            URLScan.io provides detailed security analysis and screenshots of websites.
+                            <a href="https://urlscan.io/user/signup" target="_blank">Create account</a> |
+                            <a href="https://urlscan.io/user/profile/" target="_blank">Get API key</a>
+                        </p>
 
                         <div class="form-group">
                             <label for="apiKey">
@@ -383,7 +506,6 @@
                                     type="password" 
                                     id="apiKey" 
                                     placeholder="Enter your urlscan.io API Key" 
-                                    required 
                                     autocomplete="off"
                                     data-testid="api-key-input"
                                 />
@@ -400,7 +522,7 @@
                                 Scan Visibility
                                 <span class="label-description">Control who can see your scans</span>
                             </label>
-                            <select id="visibility" required data-testid="visibility-select">
+                            <select id="visibility" data-testid="visibility-select">
                                 <option value="public">Public - Visible to everyone</option>
                                 <option value="unlisted" selected>Unlisted - Only via direct link</option>
                                 <option value="private">Private - Only you can see it</option>
@@ -422,9 +544,118 @@
                         </div>
                     </div>
 
+                    <!-- NextDNS Section -->
+                    <div class="form-section">
+                        <h2>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                            </svg>
+                            NextDNS Configuration
+                        </h2>
+                        <p class="section-description">
+                            NextDNS provides DNS-level security and privacy protection.
+                            <a href="https://my.nextdns.io/signup" target="_blank">Create account</a> |
+                            <a href="https://my.nextdns.io/account" target="_blank">Get API key</a>
+                        </p>
+
+                        <div class="form-group">
+                            <label for="nextdnsApiKey">
+                                NextDNS API Key
+                                <span class="label-description">Your NextDNS API key for managing profiles</span>
+                            </label>
+                            <div class="input-wrapper">
+                                <input 
+                                    type="password" 
+                                    id="nextdnsApiKey" 
+                                    placeholder="Enter your NextDNS API Key" 
+                                    autocomplete="off"
+                                    data-testid="nextdns-api-key-input"
+                                />
+                                <button type="button" class="toggle-password" id="toggleNextDnsKey" data-testid="toggle-nextdns-key-btn">
+                                    Show
+                                </button>
+                            </div>
+                            <div class="error-message" id="nextdnsKeyError">Please enter a valid NextDNS API key</div>
+                            <div class="input-hint">Find your API key in NextDNS account settings.</div>
+                            <button type="button" id="testNextDns" class="secondary" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px;" data-testid="test-nextdns-btn">
+                                🔍 Test Connection
+                            </button>
+                        </div>
+
+                        <div class="profiles-info" id="profilesInfo">
+                            <h4>✓ Connected Profiles:</h4>
+                            <ul id="profilesList"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Future Integrations Section -->
+                    <div class="form-section">
+                        <h2>
+                            🚀 URLScan.io Scan Queue
+                        </h2>
+                        <p class="section-description">
+                            Queue URLs for batch scanning. Add URLs throughout the day and process them all at once.
+                        </p>
+
+                        <div id="queueSection">
+                            <div id="queueEmpty" class="info-box" style="background: #f9fafb; border-left-color: #9ca3af; display: none;">
+                                <p style="color: #6b7280;">No URLs in scan queue. Right-click any link and select "Add to Scan Queue" to get started.</p>
+                            </div>
+
+                            <div id="queueList" style="display: none;">
+                                <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                        <h3 style="margin: 0; font-size: 16px; color: #374151;">
+                                            <span id="queueCount">0</span> URL(s) in Queue
+                                        </h3>
+                                        <div style="display: flex; gap: 8px;">
+                                            <button type="button" id="refreshQueue" class="secondary" style="padding: 6px 12px; font-size: 14px; flex: none;">
+                                                🔄 Refresh
+                                            </button>
+                                            <button type="button" id="clearQueue" class="secondary" style="padding: 6px 12px; font-size: 14px; flex: none; background: #fef2f2; color: #991b1b;">
+                                                🗑️ Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div id="queueItems" style="max-height: 400px; overflow-y: auto;">
+                                        <!-- Queue items will be inserted here -->
+                                    </div>
+                                </div>
+
+                                <div class="button-group">
+                                    <button type="button" id="processQueue" class="primary" data-testid="process-queue-btn">
+                                        🚀 Process Queue
+                                    </button>
+                                </div>
+
+                                <div class="input-hint" style="margin-top: 12px;">
+                                    <strong>Rate Limiting:</strong> URLs are scanned with 2.5 second delays to respect URLScan.io rate limits.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Future Integrations Section -->
+                    <div class="form-section">
+                        <h2>
+                            🚀 Future Security Tools
+                            <span class="badge coming-soon">Coming Soon</span>
+                        </h2>
+                        <p class="section-description">
+                            We're working on adding more security integrations:
+                        </p>
+                        <ul style="margin-left: 20px; color: #6b7280; font-size: 14px;">
+                            <li>• <strong>VirusTotal</strong> - Multi-engine malware scanning</li>
+                            <li>• <strong>AbuseIPDB</strong> - IP reputation checking</li>
+                            <li>• <strong>Google Safe Browsing</strong> - Phishing detection</li>
+                            <li>• <strong>Have I Been Pwned</strong> - Breach checking</li>
+                        </ul>
+                    </div>
+
                     <div class="button-group">
                         <button type="button" class="secondary" id="reset" data-testid="reset-btn">Reset to Defaults</button>
-                        <button type="submit" class="primary" id="save" data-testid="save-btn">Save Settings</button>
+                        <button type="submit" class="primary" id="save" data-testid="save-btn">Save All Settings</button>
                     </div>
 
                     <div id="status"></div>
@@ -435,13 +666,12 @@
                 <h3>Credits & Information</h3>
                 <p><strong>Developed by:</strong> Paul Rutten (<a href="mailto:info@paulrutten.nl">info@paulrutten.nl</a>)</p>
                 <p>
-                    <strong>Powered by:</strong>
-                    <a href="https://urlscan.io/" target="_blank">urlscan.io</a> ©
-                    <span style="color: #9ca3af;">|</span>
-                    <a href="https://urlscan.io/docs/api/" target="_blank">API Documentation</a>
+                    <strong>Integrations:</strong>
+                    <a href="https://urlscan.io/" target="_blank">urlscan.io</a> |
+                    <a href="https://nextdns.io/" target="_blank">NextDNS</a>
                 </p>
                 <p style="margin-top: 12px; font-size: 13px; color: #9ca3af;">
-                    Version 1.1.0 | For support and documentation, visit the extension homepage.
+                    Version 1.2.0 | All API keys stored locally and securely in Firefox.
                 </p>
             </div>
         </div>
