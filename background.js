@@ -713,12 +713,13 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     }
     // NextDNS - Add to ALL profiles (blocklist)
     else if (menuItemId === 'nextdns-blocklist-all') {
+        const profiles = [...nextDnsProfiles]; // snapshot; avoids stale-ref if menus rebuild
         const domain = extractDomain(target);
         console.log(`Adding ${domain} to blocklist for ALL profiles`);
         let successCount = 0;
         let failCount = 0;
-        
-        for (const profile of nextDnsProfiles) {
+
+        for (const profile of profiles) {
             try {
                 await addToNextDnsList(profile.id, profile.name || profile.id, domain, 'denylist', true);
                 successCount++;
@@ -727,8 +728,8 @@ browser.contextMenus.onClicked.addListener(async (info) => {
                 failCount++;
             }
         }
-        
-        if (successCount === nextDnsProfiles.length) {
+
+        if (successCount === profiles.length) {
             notifySuccess(`NextDNS: Added "${domain}" to blocklist in all ${successCount} profiles`);
         } else if (successCount > 0) {
             notifySuccess(`NextDNS: Added "${domain}" to ${successCount} profiles (${failCount} failed)`);
@@ -738,6 +739,7 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     }
     // NextDNS - Add to ALL profiles (allowlist)
     else if (menuItemId === 'nextdns-allowlist-all') {
+        const profiles = [...nextDnsProfiles]; // snapshot
         const domain = extractDomain(target);
         console.log(`Adding ${domain} to allowlist for ALL profiles`);
         let successCount = 0;
