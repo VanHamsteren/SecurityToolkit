@@ -3,7 +3,7 @@
     "name": "Security Toolkit",
     "short_name": "securitytoolkit",
     "author": "Paul Rutten",
-    "version": "1.2.7",
+    "version": "1.2.8",
     "description": "Right-click hyperlinks to send them to urlscan.io and check their validity. After that, you can send the domain name to NextDNS to block or to allow.",
     "permissions": [
         "contextMenus",

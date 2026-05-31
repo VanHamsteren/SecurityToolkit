@@ -831,6 +831,8 @@ browser.contextMenus.onClicked.addListener(async (info) => {
         target,
     });
 
+    const domain = extractDomain(target);
+
     // URLScan.io - Scan Now
     if (menuItemId === "urlscan-submit") {
         console.log("Scanning URL:", target);
@@ -887,7 +889,6 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     // NextDNS - Add to ALL profiles (allowlist)
     else if (menuItemId === "nextdns-allowlist-all") {
         const profiles = [...nextDnsProfiles]; // snapshot
-        const domain = extractDomain(target);
         console.log(`Adding ${domain} to allowlist for ALL profiles`);
         let successCount = 0;
         let failCount = 0;
