@@ -76,7 +76,7 @@ A professional Firefox extension that integrates multiple security analysis tool
 
 ### Manifest Version
 - **Version**: 3 (Manifest V3)
-- **Minimum Firefox**: 109.0+
+- **Minimum Firefox**: 142.0+
 
 ### Permissions
 - `contextMenus`: For right-click menu integration
@@ -85,20 +85,6 @@ A professional Firefox extension that integrates multiple security analysis tool
 - `storage`: To securely store user settings
 - `notifications`: To display scan status updates
 - `https://urlscan.io/*`: To communicate with urlscan.io API
-
-### File Structure
-```
-/app/
-├── manifest.json          # Extension manifest (Manifest V3)
-├── background.js          # Background service worker
-├── options.html           # Settings page
-├── options.js             # Settings logic
-├── icons/                 # Extension icons
-│   ├── urlscan_16.png
-│   ├── urlscan_32.png
-│   └── urlscan_256.png
-└── README.md             # This file
-```
 
 ## API Integration
 
@@ -186,16 +172,3 @@ This extension is provided as-is for use with urlscan.io's services. Please refe
 For issues or questions:
 - Email: info@paulrutten.nl
 - Check [urlscan.io documentation](https://urlscan.io/docs/api/)
-
-## Mozilla Add-ons Submission Checklist
-
-- ✅ Manifest V3 compliant
-- ✅ Clear privacy policy (API keys stored locally)
-- ✅ All permissions justified and documented
-- ✅ No obfuscated code
-- ✅ Comprehensive error handling
-- ✅ User-friendly interface
-- ✅ Professional design
-- ✅ Proper versioning
-- ✅ Complete documentation
-- ✅ Tested on Firefox 109+
