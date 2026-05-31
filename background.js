@@ -361,7 +361,7 @@ async function addToUrlScanQueue(url) {
         
         // Check for duplicates
         if (queue.some(item => item.url === url)) {
-            notifyUser('⚠️ Already in Queue', `"${url}" is already queued for scanning`);
+            notifyError('Already in Queue', `"${url}" is already queued for scanning`);
             console.log('URL already in queue:', url);
             return;
         }
@@ -764,7 +764,9 @@ browser.contextMenus.onClicked.addListener(async (info) => {
         }
     }
     // NextDNS blocklist (single profile)
-    else if (menuItemId.startsWith('nextdns-blocklist-')) {
+    else if (menuItemId === 'nextdns-allowlist-all') {
+        const profiles = [...nextDnsProfiles]; // snapshot
+        const domain = extractDomain(target);
         const profileId = menuItemId.replace('nextdns-blocklist-', '');
         const profile = nextDnsProfiles.find(p => p.id === profileId);
         const domain = extractDomain(target);
@@ -772,7 +774,7 @@ browser.contextMenus.onClicked.addListener(async (info) => {
         addToNextDnsList(profileId, profile?.name || profileId, domain, 'denylist');
     }
     // NextDNS allowlist (single profile)
-    else if (menuItemId.startsWith('nextdns-allowlist-')) {
+    else if (menuItemId.startsWith('nextdns-allowlist-') && menuItemId !== 'nextdns-allowlist-all') {
         const profileId = menuItemId.replace('nextdns-allowlist-', '');
         const profile = nextDnsProfiles.find(p => p.id === profileId);
         const domain = extractDomain(target);
