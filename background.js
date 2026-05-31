@@ -926,10 +926,8 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     // NextDNS blocklist (single profile)
     else if (menuItemId === "nextdns-allowlist-all") {
         const profiles = [...nextDnsProfiles]; // snapshot
-        const domain = extractDomain(target);
         const profileId = menuItemId.replace("nextdns-blocklist-", "");
         const profile = nextDnsProfiles.find((p) => p.id === profileId);
-        const domain = extractDomain(target);
         console.log(`Adding ${domain} to blocklist for profile ${profileId}`);
         addToNextDnsList(
             profileId,
@@ -945,7 +943,6 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     ) {
         const profileId = menuItemId.replace("nextdns-allowlist-", "");
         const profile = nextDnsProfiles.find((p) => p.id === profileId);
-        const domain = extractDomain(target);
         console.log(`Adding ${domain} to allowlist for profile ${profileId}`);
         addToNextDnsList(
             profileId,
