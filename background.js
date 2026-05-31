@@ -85,6 +85,7 @@ async function sendToUrlscan(url, fromQueue = false) {
     } catch (error) {
         console.error('URLScan unexpected error:', error);
         notifyError('URLScan Error', error.message || 'An unexpected error occurred. Please try again.');
+        if (fromQueue) throw error; // let processUrlScanQueue see the failure
     }
 }
 
