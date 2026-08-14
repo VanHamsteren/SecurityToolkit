@@ -3,8 +3,8 @@
     "name": "Security Toolkit",
     "short_name": "securitytoolkit",
     "author": "Paul Rutten",
-    "version": "1.2.8",
-    "description": "Right-click hyperlinks to send them to urlscan.io and check their validity. After that, you can send the domain name to NextDNS to block or to allow.",
+    "version": "1.4.0",
+    "description": "Right-click hyperlinks to analyse them with urlscan.io or VirusTotal. After that, you can send the domain name to NextDNS to block or to allow.",
     "permissions": [
         "contextMenus",
         "activeTab",
@@ -14,7 +14,9 @@
     ],
     "host_permissions": [
         "https://urlscan.io/*",
-        "https://api.nextdns.io/*"
+        "https://api.nextdns.io/*",
+        "https://www.virustotal.com/*",
+        "https://api.abuseipdb.com/*"
     ],
     "icons": {
         "16": "icons/urlscan_16.png",

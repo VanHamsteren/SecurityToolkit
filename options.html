@@ -515,6 +515,9 @@
                             </div>
                             <div class="error-message" id="apiKeyError">Please enter a valid API key (minimum 20 characters)</div>
                             <div class="input-hint">Keep your API key private and never share it with anyone.</div>
+                            <button type="button" id="testUrlscan" class="secondary" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px;" data-testid="test-urlscan-btn">
+                                🔍 Test Connection
+                            </button>
                         </div>
 
                         <div class="form-group">
@@ -588,7 +591,109 @@
                         </div>
                     </div>
 
-                    <!-- Future Integrations Section -->
+                    <!-- VirusTotal Section -->
+                    <div class="form-section">
+                        <h2>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <path d="M8 8l8 4-8 4z"></path>
+                            </svg>
+                            VirusTotal Configuration
+                        </h2>
+                        <p class="section-description">
+                            VirusTotal analyzes URLs with 70+ antivirus engines and blocklist services.
+                            <a href="https://www.virustotal.com/gui/join-us" target="_blank">Create account</a> |
+                            <a href="https://www.virustotal.com/gui/my-apikey" target="_blank">Get API key</a>
+                        </p>
+
+                        <div class="form-group">
+                            <label for="vtApiKey">
+                                VirusTotal API Key
+                                <span class="label-description">Your personal VirusTotal API key</span>
+                            </label>
+                            <div class="input-wrapper">
+                                <input
+                                    type="password"
+                                    id="vtApiKey"
+                                    placeholder="Enter your VirusTotal API Key"
+                                    autocomplete="off"
+                                    data-testid="vt-api-key-input"
+                                />
+                                <button type="button" class="toggle-password" id="toggleVtKey" data-testid="toggle-vt-key-btn">
+                                    Show
+                                </button>
+                            </div>
+                            <div class="input-hint">Free tier: 4 requests per minute, 500 per day. Keep your API key private.</div>
+                            <button type="button" id="testVt" class="secondary" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px;" data-testid="test-vt-btn">
+                                🔍 Test Connection
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- AbuseIPDB Section -->
+                    <div class="form-section">
+                        <h2>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                            AbuseIPDB Configuration
+                        </h2>
+                        <p class="section-description">
+                            AbuseIPDB checks IP reputation based on community abuse reports. Domains are resolved to their IP automatically.
+                            <a href="https://www.abuseipdb.com/register" target="_blank">Create account</a> |
+                            <a href="https://www.abuseipdb.com/account/api" target="_blank">Get API key</a>
+                        </p>
+
+                        <div class="form-group">
+                            <label for="abuseIpdbApiKey">
+                                AbuseIPDB API Key
+                                <span class="label-description">Your personal AbuseIPDB API key</span>
+                            </label>
+                            <div class="input-wrapper">
+                                <input
+                                    type="password"
+                                    id="abuseIpdbApiKey"
+                                    placeholder="Enter your AbuseIPDB API Key"
+                                    autocomplete="off"
+                                    data-testid="abuseipdb-api-key-input"
+                                />
+                                <button type="button" class="toggle-password" id="toggleAbuseKey" data-testid="toggle-abuseipdb-key-btn">
+                                    Show
+                                </button>
+                            </div>
+                            <div class="input-hint">Free tier: 1,000 checks per day. Keep your API key private.</div>
+                            <button type="button" id="testAbuse" class="secondary" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px;" data-testid="test-abuseipdb-btn">
+                                🔍 Test Connection
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Notifications Section -->
+                    <div class="form-section">
+                        <h2>
+                            🔔 Notifications
+                        </h2>
+                        <p class="section-description">
+                            Control how many notification toasts the extension shows.
+                        </p>
+
+                        <div class="form-group">
+                            <label for="notificationLevel">
+                                Notification Level
+                                <span class="label-description">Reduce noise when processing large batches</span>
+                            </label>
+                            <select id="notificationLevel" data-testid="notification-level-select">
+                                <option value="all">All - Success, progress and errors</option>
+                                <option value="errors" selected>Errors only - Recommended for batch scanning</option>
+                                <option value="none">None - Completely silent</option>
+                            </select>
+                            <div class="input-hint">All activity is still logged to the browser console regardless of this setting.</div>
+                        </div>
+                    </div>
+
+                    <!-- Scan Queue Section -->
                     <div class="form-section">
                         <h2>
                             🚀 URLScan.io Scan Queue
@@ -646,10 +751,9 @@
                             We're working on adding more security integrations:
                         </p>
                         <ul style="margin-left: 20px; color: #6b7280; font-size: 14px;">
-                            <li>• <strong>VirusTotal</strong> - Multi-engine malware scanning</li>
-                            <li>• <strong>AbuseIPDB</strong> - IP reputation checking</li>
-                            <li>• <strong>Google Safe Browsing</strong> - Phishing detection</li>
+                            <li>• <strong>Hybrid Analysis</strong> - Sandbox URL detonation</li>
                             <li>• <strong>Have I Been Pwned</strong> - Breach checking</li>
+                            <li>• <strong>Batch Report</strong> - One consolidated report for queue scans</li>
                         </ul>
                     </div>
 
@@ -668,10 +772,12 @@
                 <p>
                     <strong>Integrations:</strong>
                     <a href="https://urlscan.io/" target="_blank">urlscan.io</a> |
-                    <a href="https://nextdns.io/" target="_blank">NextDNS</a>
+                    <a href="https://nextdns.io/" target="_blank">NextDNS</a> |
+                    <a href="https://www.virustotal.com/" target="_blank">VirusTotal</a> |
+                    <a href="https://www.abuseipdb.com/" target="_blank">AbuseIPDB</a>
                 </p>
                 <p style="margin-top: 12px; font-size: 13px; color: #9ca3af;">
-                    Version 1.2.0 | All API keys stored locally and securely in Firefox.
+                    Version 1.4.0 | All API keys stored locally and securely in Firefox.
                 </p>
             </div>
         </div>

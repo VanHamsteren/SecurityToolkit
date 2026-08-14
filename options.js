@@ -7,7 +7,8 @@
 // Default configuration values
 const DEFAULTS = {
     tags: 'firefox, extension',
-    visibility: 'unlisted'
+    visibility: 'unlisted',
+    notificationLevel: 'errors'
 };
 
 // DOM Elements
@@ -16,11 +17,19 @@ const apiKeyInput = document.getElementById('apiKey');
 const visibilitySelect = document.getElementById('visibility');
 const tagsInput = document.getElementById('tags');
 const nextdnsApiKeyInput = document.getElementById('nextdnsApiKey');
+const vtApiKeyInput = document.getElementById('vtApiKey');
+const toggleVtKeyBtn = document.getElementById('toggleVtKey');
+const abuseIpdbApiKeyInput = document.getElementById('abuseIpdbApiKey');
+const toggleAbuseKeyBtn = document.getElementById('toggleAbuseKey');
+const testAbuseBtn = document.getElementById('testAbuse');
+const notificationLevelSelect = document.getElementById('notificationLevel');
 const saveButton = document.getElementById('save');
 const resetButton = document.getElementById('reset');
 const togglePasswordBtn = document.getElementById('toggleApiKey');
 const toggleNextDnsBtn = document.getElementById('toggleNextDnsKey');
 const testNextDnsBtn = document.getElementById('testNextDns');
+const testUrlscanBtn = document.getElementById('testUrlscan');
+const testVtBtn = document.getElementById('testVt');
 const statusDiv = document.getElementById('status');
 const apiKeyError = document.getElementById('apiKeyError');
 const nextdnsKeyError = document.getElementById('nextdnsKeyError');
@@ -57,11 +66,14 @@ function showStatus(message, isSuccess) {
     statusDiv.textContent = message;
     statusDiv.className = isSuccess ? 'show success' : 'show error';
     statusDiv.setAttribute('data-testid', isSuccess ? 'status-success' : 'status-error');
-    
-    // Auto-hide after 5 seconds
+
+    // Make sure the message is visible (status div sits at the bottom of the form)
+    statusDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    // Auto-hide after 8 seconds
     setTimeout(() => {
         statusDiv.classList.remove('show');
-    }, 5000);
+    }, 8000);
 }
 
 /**
@@ -131,6 +143,24 @@ toggleNextDnsBtn.addEventListener('click', () => {
 });
 
 /**
+ * Toggle VirusTotal key visibility
+ */
+toggleVtKeyBtn.addEventListener('click', () => {
+    const isPassword = vtApiKeyInput.type === 'password';
+    vtApiKeyInput.type = isPassword ? 'text' : 'password';
+    toggleVtKeyBtn.textContent = isPassword ? 'Hide' : 'Show';
+});
+
+/**
+ * Toggle AbuseIPDB key visibility
+ */
+toggleAbuseKeyBtn.addEventListener('click', () => {
+    const isPassword = abuseIpdbApiKeyInput.type === 'password';
+    abuseIpdbApiKeyInput.type = isPassword ? 'text' : 'password';
+    toggleAbuseKeyBtn.textContent = isPassword ? 'Hide' : 'Show';
+});
+
+/**
  * Test NextDNS connection via background script
  */
 testNextDnsBtn.addEventListener('click', async () => {
@@ -184,6 +214,98 @@ testNextDnsBtn.addEventListener('click', async () => {
 });
 
 /**
+ * Generic API connection test via background script
+ * @param {HTMLButtonElement} button - The test button
+ * @param {HTMLInputElement} input - The API key input
+ * @param {string} action - Background message action
+ * @param {string} serviceName - Display name of the service
+ */
+async function testApiConnection(button, input, action, serviceName) {
+    const apiKey = input.value.trim();
+
+    if (!apiKey) {
+        showStatus(`⚠️ Please enter a ${serviceName} API key first`, false);
+        return;
+    }
+
+    const originalText = button.textContent;
+    button.disabled = true;
+    button.innerHTML = '<span class="loading"></span> Testing...';
+
+    try {
+        const response = await browser.runtime.sendMessage({
+            action: action,
+            apiKey: apiKey
+        });
+
+        if (!response) {
+            showStatus('✗ No response from the extension background. Reload the extension in about:debugging and try again.', false);
+            return;
+        }
+
+        if (response.success) {
+            const extra = response.quotaInfo ? ` (${response.quotaInfo})` : '';
+            showStatus(`✓ ${serviceName} connection successful!${extra}`, true);
+        } else {
+            showStatus(`✗ ${serviceName} connection failed: ${response.error}. Check your API key.`, false);
+            console.error(`${serviceName} API error:`, response);
+        }
+    } catch (error) {
+        showStatus(`✗ Error: ${error.message}`, false);
+        console.error(`${serviceName} connection error:`, error);
+    } finally {
+        button.disabled = false;
+        button.textContent = originalText;
+    }
+}
+
+/**
+ * Test URLScan.io connection
+ */
+testUrlscanBtn.addEventListener('click', () => {
+    testApiConnection(testUrlscanBtn, apiKeyInput, 'testUrlscanConnection', 'URLScan.io');
+});
+
+/**
+ * Test VirusTotal connection
+ * Firefox MV3 host permissions are opt-in, so request access first
+ * (must happen here, inside the click handler, to count as a user gesture)
+ */
+testVtBtn.addEventListener('click', async () => {
+    try {
+        const granted = await browser.permissions.request({
+            origins: ['https://www.virustotal.com/*']
+        });
+        if (!granted) {
+            showStatus('✗ VirusTotal needs permission to access www.virustotal.com. Grant it in the prompt, or via about:addons → Security Toolkit → Permissions.', false);
+            return;
+        }
+    } catch (error) {
+        console.error('Permission request failed:', error);
+    }
+    testApiConnection(testVtBtn, vtApiKeyInput, 'testVirusTotalConnection', 'VirusTotal');
+});
+
+/**
+ * Test AbuseIPDB connection
+ * Firefox MV3 host permissions are opt-in, so request access first
+ */
+testAbuseBtn.addEventListener('click', async () => {
+    try {
+        const granted = await browser.permissions.request({
+            origins: ['https://api.abuseipdb.com/*']
+        });
+        if (!granted) {
+            showStatus('✗ AbuseIPDB needs permission to access api.abuseipdb.com. Grant it in the prompt, or via about:addons → Security Toolkit → Permissions.', false);
+            return;
+        }
+    } catch (error) {
+        console.error('Permission request failed:', error);
+    }
+    testApiConnection(testAbuseBtn, abuseIpdbApiKeyInput, 'testAbuseIpdbConnection', 'AbuseIPDB');
+});
+
+/**
  * Handle form submission
  */
 form.addEventListener('submit', async (e) => {
@@ -194,10 +316,15 @@ form.addEventListener('submit', async (e) => {
     const visibility = visibilitySelect.value;
     const tags = tagsInput.value.trim();
     const nextdnsApiKey = nextdnsApiKeyInput.value.trim();
+    const vtApiKey = vtApiKeyInput.value.trim();
+    const abuseIpdbApiKey = abuseIpdbApiKeyInput.value.trim();
+    const notificationLevel = notificationLevelSelect.value;
 
     // Update input fields with trimmed values
     apiKeyInput.value = apiKey;
     nextdnsApiKeyInput.value = nextdnsApiKey;
+    vtApiKeyInput.value = vtApiKey;
+    abuseIpdbApiKeyInput.value = abuseIpdbApiKey;
 
     // Validate URLScan API key if provided
     if (apiKey && !validateApiKey(apiKey)) {
@@ -220,7 +347,10 @@ form.addEventListener('submit', async (e) => {
             urlscanApiKey: apiKey,
             urlscanVisibility: visibility,
             urlscanTags: tags || DEFAULTS.tags,
-            nextdnsApiKey: nextdnsApiKey
+            nextdnsApiKey: nextdnsApiKey,
+            vtApiKey: vtApiKey,
+            abuseIpdbApiKey: abuseIpdbApiKey,
+            notificationLevel: notificationLevel
         });
         
         showStatus('✓ All settings saved successfully! Context menu will update shortly.', true);
@@ -249,6 +379,7 @@ resetButton.addEventListener('click', () => {
     if (confirm('Are you sure you want to reset all settings to defaults? Your API keys will be kept.')) {
         visibilitySelect.value = DEFAULTS.visibility;
         tagsInput.value = DEFAULTS.tags;
+        notificationLevelSelect.value = DEFAULTS.notificationLevel;
         showStatus('Settings reset to defaults. Click Save to apply.', true);
     }
 });
@@ -285,7 +416,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             'urlscanApiKey',
             'urlscanVisibility',
             'urlscanTags',
-            'nextdnsApiKey'
+            'nextdnsApiKey',
+            'vtApiKey',
+            'abuseIpdbApiKey',
+            'notificationLevel'
         ]);
         
         // Populate form with saved values
@@ -309,6 +443,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             nextdnsApiKeyInput.value = result.nextdnsApiKey;
             await fetchAndDisplayProfiles();
         }
+
+        if (result.vtApiKey) {
+            vtApiKeyInput.value = result.vtApiKey;
+        }
+
+        if (result.abuseIpdbApiKey) {
+            abuseIpdbApiKeyInput.value = result.abuseIpdbApiKey;
+        }
+
+        notificationLevelSelect.value = result.notificationLevel || DEFAULTS.notificationLevel;
         
         console.log('Settings loaded successfully');
     } catch (error) {

@@ -11,6 +11,25 @@ let nextDnsProfiles = [];
 let isProcessingQueue = false;
 let queueProcessCancelled = false;
 
+// Notification level: "all" | "errors" | "none" (default: errors only)
+let notificationLevel = "errors";
+
+/**
+ * Load the notification level setting from storage
+ */
+async function loadNotificationLevel() {
+    try {
+        const { notificationLevel: level } = await browser.storage.sync.get([
+            "notificationLevel",
+        ]);
+        if (["all", "errors", "none"].includes(level)) {
+            notificationLevel = level;
+        }
+    } catch (error) {
+        console.error("Failed to load notification level:", error);
+    }
+}
+
 /**
  * Submit a URL to urlscan.io for scanning
  * @param {string} url - The URL to scan
@@ -188,6 +207,393 @@ function pollForScanResult(uuid, apiKey) {
     setTimeout(() => {
         intervalId = setInterval(checkResults, POLL_INTERVAL);
     }, INITIAL_DELAY);
+}
+
+/**
+ * Submit a URL to VirusTotal for scanning and open the results page
+ * @param {string} url - The URL to scan
+ */
+async function sendToVirusTotal(url) {
+    const SUBMIT_ENDPOINT = "https://www.virustotal.com/api/v3/urls";
+
+    try {
+        const { vtApiKey: apiKey } = await browser.storage.sync.get([
+            "vtApiKey",
+        ]);
+
+        if (!apiKey) {
+            notifyError(
+                "VirusTotal Configuration Missing",
+                "Please set your VirusTotal API key in the extension options.",
+            );
+            return;
+        }
+
+        // Firefox MV3 host permissions are opt-in; verify access is granted
+        const hasPermission = await browser.permissions.contains({
+            origins: ["https://www.virustotal.com/*"],
+        });
+        if (!hasPermission) {
+            notifyError(
+                "VirusTotal Permission Missing",
+                "Open the extension options and click 'Test Connection' under VirusTotal to grant access.",
+            );
+            browser.runtime.openOptionsPage();
+            return;
+        }
+
+        // Normalize: selections may be a bare domain without protocol
+        let targetUrl = url;
+        if (!targetUrl.includes("://")) {
+            targetUrl = `https://${targetUrl}`;
+        }
+
+        // Submit URL for analysis
+        const response = await fetch(SUBMIT_ENDPOINT, {
+            method: "POST",
+            headers: {
+                "x-apikey": apiKey,
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: `url=${encodeURIComponent(targetUrl)}`,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage =
+                errorData.error?.message || "Unknown error from VirusTotal";
+            notifyError(
+                `VirusTotal API Error (${response.status})`,
+                errorMessage,
+            );
+            console.error("VirusTotal API Error:", errorData);
+            return;
+        }
+
+        const data = await response.json();
+        const analysisId = data.data?.id;
+
+        if (!analysisId) {
+            notifyError(
+                "Invalid Response",
+                "Did not receive an analysis ID from VirusTotal",
+            );
+            return;
+        }
+
+        notifySuccess("VirusTotal scan submitted! Opening results soon...");
+        pollForVirusTotalResult(analysisId, apiKey);
+    } catch (error) {
+        console.error("VirusTotal unexpected error:", error);
+        notifyError(
+            "VirusTotal Error",
+            error.message || "An unexpected error occurred. Please try again.",
+        );
+    }
+}
+
+/**
+ * Poll the VirusTotal API for analysis completion, then open the results page
+ * @param {string} analysisId - The analysis ID
+ * @param {string} apiKey - The API key for authentication
+ */
+function pollForVirusTotalResult(analysisId, apiKey) {
+    const ANALYSIS_ENDPOINT = `https://www.virustotal.com/api/v3/analyses/${analysisId}`;
+    const POLL_INTERVAL = 3000; // 3 seconds
+    const MAX_ATTEMPTS = 20; // Stop after ~60 seconds
+
+    let attempts = 0;
+    let urlId = null; // VirusTotal URL identifier (from analysis meta)
+
+    const openResults = async () => {
+        if (!urlId) {
+            notifyError(
+                "VirusTotal Error",
+                "Could not determine the results page URL.",
+            );
+            return;
+        }
+        await browser.tabs.create({
+            url: `https://www.virustotal.com/gui/url/${urlId}`,
+            active: true,
+        });
+        console.log(`VirusTotal results opened for URL id: ${urlId}`);
+    };
+
+    const checkResults = async () => {
+        attempts++;
+
+        try {
+            const response = await fetch(ANALYSIS_ENDPOINT, {
+                headers: { "x-apikey": apiKey },
+            });
+
+            if (!response.ok) {
+                const errorText = await response
+                    .text()
+                    .catch(() => "Unknown error");
+                notifyError(
+                    `VirusTotal Polling Error (${response.status})`,
+                    errorText,
+                );
+                console.error(
+                    "VirusTotal polling error:",
+                    response.status,
+                    errorText,
+                );
+                return;
+            }
+
+            const data = await response.json();
+            const status = data.data?.attributes?.status;
+            urlId = data.meta?.url_info?.id || urlId;
+
+            if (status === "completed") {
+                await openResults();
+            } else if (attempts >= MAX_ATTEMPTS) {
+                console.log(
+                    "VirusTotal analysis still running; opening partial results",
+                );
+                // Open whatever is available rather than dropping the scan
+                await openResults();
+            } else {
+                console.log(
+                    `VirusTotal not ready yet (attempt ${attempts}/${MAX_ATTEMPTS})...`,
+                );
+                setTimeout(checkResults, POLL_INTERVAL);
+            }
+        } catch (error) {
+            console.error("VirusTotal polling exception:", error);
+            notifyError(
+                "Network Error",
+                "Failed to check VirusTotal results. Please check your connection.",
+            );
+        }
+    };
+
+    setTimeout(checkResults, POLL_INTERVAL);
+}
+
+// Pivot lookup sources: open the domain on external analysis sites (no API needed)
+const PIVOT_SOURCES = [
+    {
+        id: "talos",
+        name: "Talos Intelligence",
+        url: (d) =>
+            `https://talosintelligence.com/reputation_center/lookup?search=${encodeURIComponent(d)}`,
+    },
+    {
+        id: "xforce",
+        name: "IBM X-Force Exchange",
+        url: (d) =>
+            `https://exchange.xforce.ibmcloud.com/url/${encodeURIComponent(d)}`,
+    },
+    {
+        id: "scamadviser",
+        name: "ScamAdviser",
+        url: (d) =>
+            `https://www.scamadviser.com/check-website/${encodeURIComponent(d)}`,
+    },
+    {
+        id: "urlscan-search",
+        name: "urlscan.io Search",
+        url: (d) =>
+            `https://urlscan.io/search/#page.domain%3A%22${encodeURIComponent(d)}%22`,
+    },
+    {
+        id: "vt-domain",
+        name: "VirusTotal Domain",
+        url: (d) =>
+            `https://www.virustotal.com/gui/domain/${encodeURIComponent(d)}`,
+    },
+    {
+        id: "gsb",
+        name: "Google Safe Browsing",
+        url: (d) =>
+            `https://transparencyreport.google.com/safe-browsing/search?url=${encodeURIComponent(d)}`,
+    },
+];
+
+/**
+ * Check the registration age of a domain via RDAP (rdap.org bootstrap).
+ * RDAP servers send CORS headers, so no host permission is needed.
+ * Result is always shown as a notification (explicit user request).
+ * @param {string} domain - The domain to check
+ */
+async function checkDomainAge(domain) {
+    try {
+        const response = await fetch(
+            `https://rdap.org/domain/${encodeURIComponent(domain)}`,
+            {
+                headers: { Accept: "application/rdap+json" },
+            },
+        );
+
+        if (!response.ok) {
+            showNotification(
+                `📅 Domain Age: ${domain}`,
+                response.status === 404
+                    ? "No RDAP record found. The domain may not exist or the TLD has no RDAP service."
+                    : `RDAP lookup failed (HTTP ${response.status})`,
+            );
+            return;
+        }
+
+        const data = await response.json();
+        const registration = data.events?.find(
+            (e) => e.eventAction === "registration",
+        );
+
+        if (!registration?.eventDate) {
+            showNotification(
+                `📅 Domain Age: ${domain}`,
+                "RDAP record found, but no registration date is listed.",
+            );
+            return;
+        }
+
+        const regDate = new Date(registration.eventDate);
+        const days = Math.floor((Date.now() - regDate.getTime()) / 86400000);
+        const ageText =
+            days < 365
+                ? `${days} day${days !== 1 ? "s" : ""} old`
+                : `${(days / 365).toFixed(1)} years old`;
+        const warning =
+            days < 180
+                ? "\n⚠️ Recently registered — a common phishing signal!"
+                : "";
+
+        showNotification(
+            `📅 Domain Age: ${domain}`,
+            `Registered ${regDate.toISOString().slice(0, 10)} — ${ageText}${warning}`,
+        );
+        console.log(
+            `Domain age for ${domain}: ${regDate.toISOString()}, ${days} days`,
+        );
+    } catch (error) {
+        console.error("RDAP lookup error:", error);
+        showNotification(
+            `📅 Domain Age: ${domain}`,
+            `Lookup failed: ${error.message}`,
+        );
+    }
+}
+
+/**
+ * Check whether text is an IPv4 or IPv6 address
+ * @param {string} text - Text to check
+ * @returns {boolean}
+ */
+function isIpAddress(text) {
+    return (
+        /^(\d{1,3}\.){3}\d{1,3}$/.test(text) || /^[0-9a-fA-F:]+:[0-9a-fA-F:]*$/.test(text)
+    );
+}
+
+/**
+ * Resolve a domain to its first A record via Google DNS-over-HTTPS
+ * (dns.google sends CORS headers, so no host permission is needed)
+ * @param {string} domain - Domain to resolve
+ * @returns {string|null} IPv4 address or null
+ */
+async function resolveDomainToIp(domain) {
+    try {
+        const response = await fetch(
+            `https://dns.google/resolve?name=${encodeURIComponent(domain)}&type=A`,
+        );
+        if (!response.ok) return null;
+        const data = await response.json();
+        const answer = data.Answer?.find((a) => a.type === 1);
+        return answer?.data || null;
+    } catch (error) {
+        console.error("DNS resolution error:", error);
+        return null;
+    }
+}
+
+/**
+ * Check IP reputation on AbuseIPDB (resolves domains to IPs first)
+ * @param {string} target - URL, domain, or IP address
+ */
+async function checkAbuseIpdb(target) {
+    try {
+        const { abuseIpdbApiKey: apiKey } = await browser.storage.sync.get([
+            "abuseIpdbApiKey",
+        ]);
+
+        if (!apiKey) {
+            notifyError(
+                "AbuseIPDB Configuration Missing",
+                "Please set your AbuseIPDB API key in the extension options.",
+            );
+            return;
+        }
+
+        // Firefox MV3 host permissions are opt-in; verify access is granted
+        const hasPermission = await browser.permissions.contains({
+            origins: ["https://api.abuseipdb.com/*"],
+        });
+        if (!hasPermission) {
+            notifyError(
+                "AbuseIPDB Permission Missing",
+                "Open the extension options and click 'Test Connection' under AbuseIPDB to grant access.",
+            );
+            browser.runtime.openOptionsPage();
+            return;
+        }
+
+        const domain = extractDomain(target);
+        const ip = isIpAddress(domain) ? domain : await resolveDomainToIp(domain);
+
+        if (!ip) {
+            showNotification(
+                `🛡️ AbuseIPDB: ${domain}`,
+                "Could not resolve the domain to an IP address.",
+            );
+            return;
+        }
+
+        const response = await fetch(
+            `https://api.abuseipdb.com/api/v2/check?ipAddress=${encodeURIComponent(ip)}&maxAgeInDays=90`,
+            {
+                headers: { Key: apiKey, Accept: "application/json" },
+            },
+        );
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            const errorMessage =
+                errorData.errors?.[0]?.detail || `HTTP ${response.status}`;
+            notifyError("AbuseIPDB API Error", errorMessage);
+            return;
+        }
+
+        const { data } = await response.json();
+        const resolvedNote = ip !== domain ? ` (resolved from ${domain})` : "";
+        const scoreEmoji =
+            data.abuseConfidenceScore >= 50
+                ? "🔴"
+                : data.abuseConfidenceScore > 0
+                  ? "🟡"
+                  : "🟢";
+
+        showNotification(
+            `🛡️ AbuseIPDB: ${ip}${resolvedNote}`,
+            `${scoreEmoji} Abuse score: ${data.abuseConfidenceScore}% — ${data.totalReports} report${data.totalReports !== 1 ? "s" : ""} in 90 days\n${data.isp || "Unknown ISP"} · ${data.countryCode || "??"}`,
+        );
+
+        // Open the details page in a background tab (allows reporting the IP)
+        browser.tabs.create({
+            url: `https://www.abuseipdb.com/check/${encodeURIComponent(ip)}`,
+            active: false,
+        });
+    } catch (error) {
+        console.error("AbuseIPDB unexpected error:", error);
+        notifyError(
+            "AbuseIPDB Error",
+            error.message || "An unexpected error occurred.",
+        );
+    }
 }
 
 /**
@@ -647,6 +1053,68 @@ async function createContextMenus() {
             });
         }
 
+        // Add VirusTotal parent menu
+        browser.contextMenus.create({
+            id: "virustotal-parent",
+            parentId: "security-parent",
+            title: "VirusTotal",
+            contexts: contexts,
+            icons: {
+                16: "icons/virustotal_16.png",
+            },
+        });
+
+        // Add VirusTotal "Scan Now" option
+        browser.contextMenus.create({
+            id: "virustotal-submit",
+            parentId: "virustotal-parent",
+            title: "🔍 Scan Now",
+            contexts: contexts,
+        });
+
+        // Add AbuseIPDB parent menu
+        browser.contextMenus.create({
+            id: "abuseipdb-parent",
+            parentId: "security-parent",
+            title: "AbuseIPDB",
+            contexts: contexts,
+            icons: {
+                16: "icons/abuseipdb_16.png",
+            },
+        });
+
+        browser.contextMenus.create({
+            id: "abuseipdb-check",
+            parentId: "abuseipdb-parent",
+            title: "🔍 Check IP Reputation",
+            contexts: contexts,
+        });
+
+        // Add Domain Age (RDAP) item
+        browser.contextMenus.create({
+            id: "domain-age",
+            parentId: "security-parent",
+            title: "📅 Domain Age (RDAP)",
+            contexts: contexts,
+        });
+
+        // Add pivot lookup submenu
+        browser.contextMenus.create({
+            id: "lookup-parent",
+            parentId: "security-parent",
+            title: "🔎 Lookup on…",
+            contexts: contexts,
+        });
+
+        for (const source of PIVOT_SOURCES) {
+            browser.contextMenus.create({
+                id: `lookup-${source.id}`,
+                parentId: "lookup-parent",
+                title: source.name,
+                contexts: contexts,
+            });
+        }
+
         // Fetch NextDNS profiles
         nextDnsProfiles = await fetchNextDnsProfiles();
         console.log(`Fetched ${nextDnsProfiles.length} NextDNS profiles`);
@@ -658,6 +1126,9 @@ async function createContextMenus() {
                 parentId: "security-parent",
                 title: "NextDNS",
                 contexts: contexts,
+                icons: {
+                    16: "icons/nextdns_16.png",
+                },
             });
 
             // Create "Add to blocklist" submenu
@@ -848,6 +1319,30 @@ browser.contextMenus.onClicked.addListener(async (info) => {
         console.log("Processing scan queue");
         processUrlScanQueue();
     }
+    // VirusTotal - Scan Now
+    else if (menuItemId === "virustotal-submit") {
+        console.log("Scanning URL with VirusTotal:", target);
+        sendToVirusTotal(target);
+    }
+    // AbuseIPDB - Check IP Reputation
+    else if (menuItemId === "abuseipdb-check") {
+        console.log("Checking IP reputation on AbuseIPDB:", target);
+        checkAbuseIpdb(target);
+    }
+    // Domain Age (RDAP)
+    else if (menuItemId === "domain-age") {
+        console.log("Checking domain age via RDAP:", domain);
+        checkDomainAge(domain);
+    }
+    // Pivot lookups - open the domain on an external analysis site
+    else if (menuItemId.startsWith("lookup-")) {
+        const sourceId = menuItemId.replace("lookup-", "");
+        const source = PIVOT_SOURCES.find((s) => s.id === sourceId);
+        if (source) {
+            console.log(`Opening ${source.name} for:`, domain);
+            browser.tabs.create({ url: source.url(domain), active: true });
+        }
+    }
     // NextDNS - Add to ALL profiles (blocklist)
     else if (menuItemId === "nextdns-blocklist-all") {
         const profiles = [...nextDnsProfiles];
@@ -893,7 +1388,7 @@ browser.contextMenus.onClicked.addListener(async (info) => {
         let successCount = 0;
         let failCount = 0;
 
-        for (const profile of nextDnsProfiles) {
+        for (const profile of profiles) {
             try {
                 await addToNextDnsList(
                     profile.id,
@@ -909,7 +1404,7 @@ browser.contextMenus.onClicked.addListener(async (info) => {
             }
         }
 
-        if (successCount === nextDnsProfiles.length) {
+        if (successCount === profiles.length) {
             notifySuccess(
                 `NextDNS: Added "${domain}" to allowlist in all ${successCount} profiles`,
             );
@@ -925,8 +1420,10 @@ browser.contextMenus.onClicked.addListener(async (info) => {
         }
     }
     // NextDNS blocklist (single profile)
-    else if (menuItemId === "nextdns-allowlist-all") {
-        const profiles = [...nextDnsProfiles]; // snapshot
+    else if (
+        menuItemId.startsWith("nextdns-blocklist-") &&
+        menuItemId !== "nextdns-blocklist-all"
+    ) {
         const profileId = menuItemId.replace("nextdns-blocklist-", "");
         const profile = nextDnsProfiles.find((p) => p.id === profileId);
         console.log(`Adding ${domain} to blocklist for profile ${profileId}`);
@@ -959,11 +1456,11 @@ browser.contextMenus.onClicked.addListener(async (info) => {
 });
 
 /**
- * Display a browser notification to the user
+ * Show a browser notification (unconditional)
  * @param {string} title - Notification title
  * @param {string} message - Notification message
  */
-function notifyUser(title, message) {
+function showNotification(title, message) {
     browser.notifications.create({
         type: "basic",
         iconUrl: "icons/urlscan_32.png",
@@ -974,20 +1471,38 @@ function notifyUser(title, message) {
 }
 
 /**
- * Display a success notification
- * @param {string} message - Success message
+ * Display an informational notification (only when level is "all")
+ * @param {string} title - Notification title
+ * @param {string} message - Notification message
  */
-function notifySuccess(message) {
-    notifyUser("✓ Success", message);
+function notifyUser(title, message) {
+    console.log(`[notify] ${title}: ${message}`);
+    if (notificationLevel === "all") {
+        showNotification(title, message);
+    }
 }
 
 /**
- * Display an error notification
+ * Display a success notification (only when level is "all")
+ * @param {string} message - Success message
+ */
+function notifySuccess(message) {
+    console.log(`[notify] Success: ${message}`);
+    if (notificationLevel === "all") {
+        showNotification("✓ Success", message);
+    }
+}
+
+/**
+ * Display an error notification (unless level is "none")
  * @param {string} title - Error title
  * @param {string} message - Error message
  */
 function notifyError(title, message) {
-    notifyUser(`✗ ${title}`, message);
+    console.error(`[notify] ${title}: ${message}`);
+    if (notificationLevel !== "none") {
+        showNotification(`✗ ${title}`, message);
+    }
 }
 
 // ---- Message Handling for Options Page ----
@@ -1036,6 +1551,144 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     success: false,
                     error: error.message,
                 });
+            }
+        })();
+        return true; // Keep message channel open for async response
+    }
+
+    if (message.action === "testUrlscanConnection") {
+        // Test URLScan API connection via the quotas endpoint (no scan consumed)
+        (async () => {
+            try {
+                const apiKey = message.apiKey;
+                if (!apiKey) {
+                    sendResponse({
+                        success: false,
+                        error: "No API key provided",
+                    });
+                    return;
+                }
+
+                const response = await fetch(
+                    "https://urlscan.io/user/quotas/",
+                    {
+                        headers: { "API-Key": apiKey },
+                    },
+                );
+
+                if (response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    // Try to surface remaining private scan quota if present
+                    const privateDay = data?.limits?.private?.day;
+                    const quotaInfo = privateDay
+                        ? `${privateDay.remaining}/${privateDay.limit} private scans left today`
+                        : null;
+                    sendResponse({ success: true, quotaInfo });
+                } else {
+                    const errorText = await response
+                        .text()
+                        .catch(() => "Unknown error");
+                    sendResponse({
+                        success: false,
+                        error: `HTTP ${response.status}: ${errorText.substring(0, 200)}`,
+                        status: response.status,
+                    });
+                }
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true; // Keep message channel open for async response
+    }
+
+    if (message.action === "testVirusTotalConnection") {
+        // Test VirusTotal API connection by fetching the key's own user object
+        (async () => {
+            try {
+                const apiKey = message.apiKey;
+                if (!apiKey) {
+                    sendResponse({
+                        success: false,
+                        error: "No API key provided",
+                    });
+                    return;
+                }
+
+                const response = await fetch(
+                    `https://www.virustotal.com/api/v3/users/${encodeURIComponent(apiKey)}`,
+                    {
+                        headers: { "x-apikey": apiKey },
+                    },
+                );
+
+                if (response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    const daily =
+                        data?.data?.attributes?.quotas?.api_requests_daily;
+                    const quotaInfo = daily
+                        ? `${daily.used}/${daily.allowed} API requests used today`
+                        : null;
+                    sendResponse({ success: true, quotaInfo });
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMessage =
+                        errorData.error?.message ||
+                        `HTTP ${response.status}`;
+                    sendResponse({
+                        success: false,
+                        error: errorMessage,
+                        status: response.status,
+                    });
+                }
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
+            }
+        })();
+        return true; // Keep message channel open for async response
+    }
+
+    if (message.action === "testAbuseIpdbConnection") {
+        // Test AbuseIPDB API connection with a benign known IP (8.8.8.8)
+        (async () => {
+            try {
+                const apiKey = message.apiKey;
+                if (!apiKey) {
+                    sendResponse({
+                        success: false,
+                        error: "No API key provided",
+                    });
+                    return;
+                }
+
+                const response = await fetch(
+                    "https://api.abuseipdb.com/api/v2/check?ipAddress=8.8.8.8&maxAgeInDays=30",
+                    {
+                        headers: { Key: apiKey, Accept: "application/json" },
+                    },
+                );
+
+                if (response.ok) {
+                    const remaining =
+                        response.headers.get("X-RateLimit-Remaining");
+                    const limit = response.headers.get("X-RateLimit-Limit");
+                    const quotaInfo =
+                        remaining && limit
+                            ? `${remaining}/${limit} checks left today`
+                            : null;
+                    sendResponse({ success: true, quotaInfo });
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    const errorMessage =
+                        errorData.errors?.[0]?.detail ||
+                        `HTTP ${response.status}`;
+                    sendResponse({
+                        success: false,
+                        error: errorMessage,
+                        status: response.status,
+                    });
+                }
+            } catch (error) {
+                sendResponse({ success: false, error: error.message });
             }
         })();
         return true; // Keep message channel open for async response
@@ -1098,14 +1751,19 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ---- Extension Initialization ----
-// Create context menus on extension load
+// Load settings and create context menus on extension load
+loadNotificationLevel();
 createContextMenus();
 
 // Listen for storage changes to update menus dynamically
 browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === "sync") {
+        // Update notification level if changed
+        if (changes.notificationLevel) {
+            loadNotificationLevel();
+        }
         // Recreate menus if any relevant setting changed
-        if (changes.nextdnsApiKey || changes.urlscanApiKey) {
+        if (changes.nextdnsApiKey || changes.urlscanApiKey || changes.vtApiKey) {
             console.log("Settings changed, recreating menus...");
             // Small delay to ensure storage is updated
             setTimeout(() => {
