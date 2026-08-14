@@ -162,7 +162,11 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.4.1 (Current)
+### Version 1.4.2 (Current)
+- 🦊 New permanent add-on ID (firefox@paulrutten.nl) ahead of AMO submission
+- 🔒 Removed remote Google Fonts stylesheet from options page (AMO policy; falls back to system fonts)
+
+### Version 1.4.1
 - 📝 Updated contact email to securitytoolkit@paulrutten.nl
 - ☕ Added Buy Me a Coffee support link
 

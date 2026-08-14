@@ -3,7 +3,7 @@
     "name": "Security Toolkit",
     "short_name": "securitytoolkit",
     "author": "Paul Rutten",
-    "version": "1.4.1",
+    "version": "1.4.2",
     "description": "Right-click hyperlinks to analyse them with urlscan.io or VirusTotal. After that, you can send the domain name to NextDNS to block or to allow.",
     "permissions": [
         "contextMenus",
@@ -43,7 +43,7 @@
     },
     "browser_specific_settings": {
         "gecko": {
-            "id": "sendnudesto@paulrutten.nl",
+            "id": "firefox@paulrutten.nl",
             "strict_min_version": "142.0",
             "data_collection_permissions": {
                 "required": [
