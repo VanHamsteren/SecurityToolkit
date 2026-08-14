@@ -162,7 +162,11 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.4.0 (Current)
+### Version 1.4.1 (Current)
+- 📝 Updated contact email to securitytoolkit@paulrutten.nl
+- ☕ Added Buy Me a Coffee support link
+
+### Version 1.4.0
 - ✨ Added AbuseIPDB integration (IP reputation check with automatic domain→IP resolution, opens details page for reporting)
 - ✨ Added Domain Age check via RDAP — flags recently registered domains (a common phishing signal)
 - ✨ Added "Lookup on…" pivot submenu: Talos, IBM X-Force, ScamAdviser, urlscan.io search, VirusTotal domain, Google Safe Browsing
@@ -204,7 +208,9 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Credits
 
-**Developer**: Paul Rutten (info@paulrutten.nl)
+**Developer**: Paul Rutten (securitytoolkit@paulrutten.nl)
+
+If you like my work and want to support it (or my rampaging coffee addiction), consider making a donation via [☕ Buy Me a Coffee](https://buymeacoffee.com/nyana).
 
 **Powered by**:
 - [urlscan.io](https://urlscan.io/) - Website security scanner
@@ -222,5 +228,6 @@ This extension is provided as-is for use with the integrated services. Please re
 ## Support
 
 For issues or questions:
-- Email: info@paulrutten.nl
+- Email: securitytoolkit@paulrutten.nl
+- Support the project: [☕ Buy Me a Coffee](https://buymeacoffee.com/nyana)
 - API documentation: [urlscan.io](https://urlscan.io/docs/api/) | [VirusTotal](https://docs.virustotal.com/reference/overview) | [AbuseIPDB](https://docs.abuseipdb.com/) | [NextDNS](https://nextdns.github.io/api/)
