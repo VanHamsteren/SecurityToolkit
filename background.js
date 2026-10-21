@@ -1,4 +1,4 @@
-/* global browser */
+/* global browser, qsStart */
 /**
  * URLScan.io & NextDNS Firefox Extension - Background Service Worker
  * Handles security tool integrations and context menu management
@@ -1003,6 +1003,28 @@ async function createContextMenus() {
             contexts: contexts,
         });
 
+        // Built-in Quick Scan (own analysis, see quickscan.js)
+        browser.contextMenus.create({
+            id: "quickscan",
+            parentId: "security-parent",
+            title: "🔎 Analyse link (all tools)",
+            contexts: contexts,
+        });
+
+        browser.contextMenus.create({
+            id: "quickscan-only",
+            parentId: "security-parent",
+            title: "⚡ Quick Scan only (nothing is sent)",
+            contexts: contexts,
+        });
+
+        browser.contextMenus.create({
+            id: "quickscan-separator",
+            parentId: "security-parent",
+            type: "separator",
+            contexts: contexts,
+        });
+
         // Get queue count for URLScan menu
         const queue = await getUrlScanQueue();
         const pendingCount = queue.filter(
@@ -1277,6 +1299,22 @@ async function createContextMenus() {
     }
 }
 
+const recentMenuClicks = new Set();
+let activeJobs = 0;
+
+/** Show a "working" badge on the toolbar button while a job starts up */
+function trackJob(promise) {
+    activeJobs += 1;
+    browser.action.setBadgeBackgroundColor({ color: "#0F746C" });
+    browser.action.setBadgeText({ text: "..." });
+    Promise.resolve(promise)
+        .catch((e) => console.error("Analysis failed to start:", e))
+        .finally(() => {
+            activeJobs = Math.max(0, activeJobs - 1);
+            if (activeJobs === 0) browser.action.setBadgeText({ text: "" });
+        });
+}
+
 /**
  * Handle context menu clicks
  */
@@ -1304,30 +1342,31 @@ browser.contextMenus.onClicked.addListener(async (info) => {
 
     const domain = extractDomain(target);
 
-    // URLScan.io - Scan Now
-    if (menuItemId === "urlscan-submit") {
-        console.log("Scanning URL:", target);
-        sendToUrlscan(target);
+    // Every analysis opens ONE results page straight away (so it never looks like nothing happened).
+    // The page runs the requested tools and shows each result in its own card.
+    const analysisRuns = {
+        quickscan: { run: "all" },
+        "quickscan-only": {},
+        "urlscan-submit": { run: "urlscan", focus: "urlscan" },
+        "virustotal-submit": { run: "virustotal", focus: "virustotal" },
+        "abuseipdb-check": { run: "abuseipdb", focus: "abuseipdb" },
+    };
+    if (analysisRuns[menuItemId]) {
+        // A double click on the menu would otherwise open two identical tabs
+        const key = `${menuItemId}|${target}`;
+        if (recentMenuClicks.has(key)) return;
+        recentMenuClicks.add(key);
+        setTimeout(() => recentMenuClicks.delete(key), 3000);
+        trackJob(qsStart(target, analysisRuns[menuItemId]));
     }
     // URLScan.io - Add to Queue
     else if (menuItemId === "urlscan-queue-add") {
         console.log("Adding to scan queue:", target);
         addToUrlScanQueue(target);
     }
-    // URLScan.io - Process Queue
+    // URLScan.io - Process Queue: open the queue page, which scans and shows progress
     else if (menuItemId === "urlscan-queue-process") {
-        console.log("Processing scan queue");
-        processUrlScanQueue();
-    }
-    // VirusTotal - Scan Now
-    else if (menuItemId === "virustotal-submit") {
-        console.log("Scanning URL with VirusTotal:", target);
-        sendToVirusTotal(target);
-    }
-    // AbuseIPDB - Check IP Reputation
-    else if (menuItemId === "abuseipdb-check") {
-        console.log("Checking IP reputation on AbuseIPDB:", target);
-        checkAbuseIpdb(target);
+        browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1&autostart=1"), active: true });
     }
     // Domain Age (RDAP)
     else if (menuItemId === "domain-age") {
@@ -1463,7 +1502,7 @@ browser.contextMenus.onClicked.addListener(async (info) => {
 function showNotification(title, message) {
     browser.notifications.create({
         type: "basic",
-        iconUrl: "icons/urlscan_32.png",
+        iconUrl: "icons/icon_48.png",
         title,
         message,
         priority: 2,
@@ -1736,7 +1775,7 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === "processQueue") {
         // Process queue
         (async () => {
-            processUrlScanQueue();
+            await browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1&autostart=1"), active: true });
             sendResponse({ success: true });
         })();
         return true;

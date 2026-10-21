@@ -1,580 +1,286 @@
-/* global browser */
+/* global browser, Busy */
 /**
- * Security Tools Extension - Options Page Script
- * Handles settings management and user interactions
+ * Security Toolkit - settings page
+ * Every action that waits for a network answer goes through Busy.run, which
+ * disables the button and shows a spinner, so a second click cannot happen.
  */
 
-// Default configuration values
 const DEFAULTS = {
-    tags: 'firefox, extension',
-    visibility: 'unlisted',
-    notificationLevel: 'errors'
+    tags: "firefox, extension",
+    visibility: "unlisted",
+    notificationLevel: "errors",
+    qsLiveMode: "ask",
+    qsFollowClient: true,
 };
 
-// DOM Elements
-const form = document.getElementById('settingsForm');
-const apiKeyInput = document.getElementById('apiKey');
-const visibilitySelect = document.getElementById('visibility');
-const tagsInput = document.getElementById('tags');
-const nextdnsApiKeyInput = document.getElementById('nextdnsApiKey');
-const vtApiKeyInput = document.getElementById('vtApiKey');
-const toggleVtKeyBtn = document.getElementById('toggleVtKey');
-const abuseIpdbApiKeyInput = document.getElementById('abuseIpdbApiKey');
-const toggleAbuseKeyBtn = document.getElementById('toggleAbuseKey');
-const testAbuseBtn = document.getElementById('testAbuse');
-const notificationLevelSelect = document.getElementById('notificationLevel');
-const saveButton = document.getElementById('save');
-const resetButton = document.getElementById('reset');
-const togglePasswordBtn = document.getElementById('toggleApiKey');
-const toggleNextDnsBtn = document.getElementById('toggleNextDnsKey');
-const testNextDnsBtn = document.getElementById('testNextDns');
-const testUrlscanBtn = document.getElementById('testUrlscan');
-const testVtBtn = document.getElementById('testVt');
-const statusDiv = document.getElementById('status');
-const apiKeyError = document.getElementById('apiKeyError');
-const nextdnsKeyError = document.getElementById('nextdnsKeyError');
-const profilesInfo = document.getElementById('profilesInfo');
-const profilesList = document.getElementById('profilesList');
+const QS_LIVE_PERMISSIONS = {
+    permissions: ["webRequest", "webRequestBlocking"],
+    origins: ["<all_urls>"],
+};
 
-// Queue management elements
-const queueSection = document.getElementById('queueSection');
-const queueEmpty = document.getElementById('queueEmpty');
-const queueList = document.getElementById('queueList');
-const queueCount = document.getElementById('queueCount');
-const queueItems = document.getElementById('queueItems');
-const refreshQueueBtn = document.getElementById('refreshQueue');
-const clearQueueBtn = document.getElementById('clearQueue');
-const processQueueBtn = document.getElementById('processQueue');
+const $ = (id) => document.getElementById(id);
+const form = $("settingsForm");
+const apiKeyInput = $("apiKey");
+const visibilitySelect = $("visibility");
+const tagsInput = $("tags");
+const nextdnsApiKeyInput = $("nextdnsApiKey");
+const vtApiKeyInput = $("vtApiKey");
+const abuseIpdbApiKeyInput = $("abuseIpdbApiKey");
+const notificationLevelSelect = $("notificationLevel");
+const saveButton = $("save");
+const resetButton = $("reset");
+const qsLiveModeSelect = $("qsLiveMode");
+const qsFollowClientCheckbox = $("qsFollowClient");
+const qsGrantBtn = $("qsGrant");
+const qsPermState = $("qsPermState");
+const statusDiv = $("status");
+const apiKeyError = $("apiKeyError");
+const nextdnsKeyError = $("nextdnsKeyError");
+const profilesInfo = $("profilesInfo");
+const profilesList = $("profilesList");
 
-/**
- * Validate API key format
- * @param {string} apiKey - The API key to validate
- * @returns {boolean} True if valid
- */
+let statusTimer;
+
 function validateApiKey(apiKey) {
-    const trimmed = apiKey.trim();
-    // Basic validation: non-empty and reasonable length
-    return trimmed.length >= 20;
+    return apiKey.trim().length >= 20;
 }
 
-/**
- * Show status message to user
- * @param {string} message - Message to display
- * @param {boolean} isSuccess - Whether this is a success or error message
- */
 function showStatus(message, isSuccess) {
     statusDiv.textContent = message;
-    statusDiv.className = isSuccess ? 'show success' : 'show error';
-    statusDiv.setAttribute('data-testid', isSuccess ? 'status-success' : 'status-error');
-
-    // Make sure the message is visible (status div sits at the bottom of the form)
-    statusDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-    // Auto-hide after 8 seconds
-    setTimeout(() => {
-        statusDiv.classList.remove('show');
-    }, 8000);
+    statusDiv.className = isSuccess ? "show success" : "show error";
+    statusDiv.setAttribute("data-testid", isSuccess ? "status-success" : "status-error");
+    statusDiv.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => statusDiv.classList.remove("show"), 8000);
 }
 
-/**
- * Show validation error for a field
- * @param {HTMLElement} input - Input element
- * @param {HTMLElement} errorElement - Error message element
- * @param {boolean} show - Whether to show or hide error
- */
 function showFieldError(input, errorElement, show) {
-    if (show) {
-        input.classList.add('error');
-        errorElement.classList.add('show');
-    } else {
-        input.classList.remove('error');
-        errorElement.classList.remove('show');
-    }
+    input.classList.toggle("error", show);
+    errorElement.classList.toggle("show", show);
 }
 
-/**
- * Fetch and display NextDNS profiles via background script
- */
+function renderProfiles(profiles) {
+    profilesList.replaceChildren(...profiles.map((p) => {
+        const li = document.createElement("li");
+        li.textContent = `${p.name || p.id} (${p.id})`;
+        return li;
+    }));
+    profilesInfo.classList.add("show");
+}
+
+/** Fetch and show NextDNS profiles via the background script */
 async function fetchAndDisplayProfiles() {
     const apiKey = nextdnsApiKeyInput.value.trim();
-    
     if (!apiKey) {
-        profilesInfo.classList.remove('show');
+        profilesInfo.classList.remove("show");
         return;
     }
-
     try {
-        // Send message to background script to test connection
-        const response = await browser.runtime.sendMessage({
-            action: 'testNextDnsConnection',
-            apiKey: apiKey
-        });
-
-        if (response.success && response.profiles.length > 0) {
-            profilesList.innerHTML = response.profiles
-                .map(p => `<li>• ${p.name || p.id} (${p.id})</li>`)
-                .join('');
-            profilesInfo.classList.add('show');
-        } else {
-            profilesInfo.classList.remove('show');
-        }
+        const response = await browser.runtime.sendMessage({ action: "testNextDnsConnection", apiKey });
+        if (response?.success && response.profiles.length > 0) renderProfiles(response.profiles);
+        else profilesInfo.classList.remove("show");
     } catch (error) {
-        console.error('Error fetching profiles via background:', error);
-        profilesInfo.classList.remove('show');
+        console.error("Error fetching profiles via background:", error);
+        profilesInfo.classList.remove("show");
     }
 }
 
-/**
- * Toggle API key visibility
- */
-togglePasswordBtn.addEventListener('click', () => {
-    const isPassword = apiKeyInput.type === 'password';
-    apiKeyInput.type = isPassword ? 'text' : 'password';
-    togglePasswordBtn.textContent = isPassword ? 'Hide' : 'Show';
-});
+// Show / hide key buttons
+function wireToggle(button, input) {
+    button.addEventListener("click", () => {
+        const hidden = input.type === "password";
+        input.type = hidden ? "text" : "password";
+        button.textContent = hidden ? "Hide" : "Show";
+    });
+}
+wireToggle($("toggleApiKey"), apiKeyInput);
+wireToggle($("toggleNextDnsKey"), nextdnsApiKeyInput);
+wireToggle($("toggleVtKey"), vtApiKeyInput);
+wireToggle($("toggleAbuseKey"), abuseIpdbApiKeyInput);
 
 /**
- * Toggle NextDNS key visibility
+ * Test a connection through the background script.
+ * Optional host permission is requested first (it must be the first await in the click handler).
  */
-toggleNextDnsBtn.addEventListener('click', () => {
-    const isPassword = nextdnsApiKeyInput.type === 'password';
-    nextdnsApiKeyInput.type = isPassword ? 'text' : 'password';
-    toggleNextDnsBtn.textContent = isPassword ? 'Hide' : 'Show';
-});
-
-/**
- * Toggle VirusTotal key visibility
- */
-toggleVtKeyBtn.addEventListener('click', () => {
-    const isPassword = vtApiKeyInput.type === 'password';
-    vtApiKeyInput.type = isPassword ? 'text' : 'password';
-    toggleVtKeyBtn.textContent = isPassword ? 'Hide' : 'Show';
-});
-
-/**
- * Toggle AbuseIPDB key visibility
- */
-toggleAbuseKeyBtn.addEventListener('click', () => {
-    const isPassword = abuseIpdbApiKeyInput.type === 'password';
-    abuseIpdbApiKeyInput.type = isPassword ? 'text' : 'password';
-    toggleAbuseKeyBtn.textContent = isPassword ? 'Hide' : 'Show';
-});
-
-/**
- * Test NextDNS connection via background script
- */
-testNextDnsBtn.addEventListener('click', async () => {
-    const apiKey = nextdnsApiKeyInput.value.trim();
-    
-    if (!apiKey) {
-        showStatus('⚠️ Please enter a NextDNS API key first', false);
-        return;
-    }
-    
-    // Show loading state
-    const originalText = testNextDnsBtn.textContent;
-    testNextDnsBtn.disabled = true;
-    testNextDnsBtn.innerHTML = '<span class="loading"></span> Testing...';
-    
-    try {
-        console.log('Testing NextDNS API connection via background script...');
-        
-        // Send message to background script
-        const response = await browser.runtime.sendMessage({
-            action: 'testNextDnsConnection',
-            apiKey: apiKey
-        });
-        
-        if (response.success) {
-            const profiles = response.profiles;
-            
-            if (profiles.length > 0) {
-                showStatus(`✓ Connection successful! Found ${profiles.length} profile(s): ${profiles.map(p => p.name || p.id).join(', ')}`, true);
-                console.log('NextDNS profiles:', profiles);
-                
-                // Display profiles
-                profilesList.innerHTML = profiles
-                    .map(p => `<li>• ${p.name || p.id} (${p.id})</li>`)
-                    .join('');
-                profilesInfo.classList.add('show');
-            } else {
-                showStatus('⚠️ Connection successful but no profiles found. Create a profile at nextdns.io', false);
+function wireTest(button, input, action, serviceName, origin) {
+    button.addEventListener("click", async () => {
+        if (button.getAttribute("aria-busy") === "true") return;
+        if (!input.value.trim()) {
+            showStatus(`Please enter a ${serviceName} API key first.`, false);
+            input.focus();
+            return;
+        }
+        if (origin) {
+            try {
+                const granted = await browser.permissions.request({ origins: [origin] });
+                if (!granted) {
+                    showStatus(`${serviceName} needs permission to be contacted. Choose Allow in the prompt, or grant it under about:addons > Security Toolkit > Permissions.`, false);
+                    return;
+                }
+            } catch (error) {
+                console.error("Permission request failed:", error);
             }
-        } else {
-            showStatus(`✗ Connection failed: ${response.error}. Check your API key.`, false);
-            console.error('NextDNS API error:', response);
         }
-    } catch (error) {
-        showStatus(`✗ Error: ${error.message}`, false);
-        console.error('NextDNS connection error:', error);
-    } finally {
-        testNextDnsBtn.disabled = false;
-        testNextDnsBtn.textContent = originalText;
-    }
-});
-
-/**
- * Generic API connection test via background script
- * @param {HTMLButtonElement} button - The test button
- * @param {HTMLInputElement} input - The API key input
- * @param {string} action - Background message action
- * @param {string} serviceName - Display name of the service
- */
-async function testApiConnection(button, input, action, serviceName) {
-    const apiKey = input.value.trim();
-
-    if (!apiKey) {
-        showStatus(`⚠️ Please enter a ${serviceName} API key first`, false);
-        return;
-    }
-
-    const originalText = button.textContent;
-    button.disabled = true;
-    button.innerHTML = '<span class="loading"></span> Testing...';
-
-    try {
-        const response = await browser.runtime.sendMessage({
-            action: action,
-            apiKey: apiKey
+        await Busy.run(button, "Testing...", async () => {
+            try {
+                const response = await browser.runtime.sendMessage({ action, apiKey: input.value.trim() });
+                if (!response) {
+                    showStatus("No response from the extension background. Reload the extension in about:debugging and try again.", false);
+                    return;
+                }
+                if (response.success) {
+                    if (response.profiles) {
+                        if (response.profiles.length) {
+                            renderProfiles(response.profiles);
+                            showStatus(`${serviceName} connection works. Found ${response.profiles.length} profile(s): ${response.profiles.map((p) => p.name || p.id).join(", ")}`, true);
+                        } else {
+                            showStatus("Connection works but no profiles were found. Create a profile at nextdns.io.", false);
+                        }
+                    } else {
+                        showStatus(`${serviceName} connection works.${response.quotaInfo ? ` (${response.quotaInfo})` : ""}`, true);
+                    }
+                } else {
+                    showStatus(`${serviceName} connection failed: ${response.error}. Check your API key.`, false);
+                }
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, false);
+                console.error(`${serviceName} connection error:`, error);
+            }
         });
-
-        if (!response) {
-            showStatus('✗ No response from the extension background. Reload the extension in about:debugging and try again.', false);
-            return;
-        }
-
-        if (response.success) {
-            const extra = response.quotaInfo ? ` (${response.quotaInfo})` : '';
-            showStatus(`✓ ${serviceName} connection successful!${extra}`, true);
-        } else {
-            showStatus(`✗ ${serviceName} connection failed: ${response.error}. Check your API key.`, false);
-            console.error(`${serviceName} API error:`, response);
-        }
-    } catch (error) {
-        showStatus(`✗ Error: ${error.message}`, false);
-        console.error(`${serviceName} connection error:`, error);
-    } finally {
-        button.disabled = false;
-        button.textContent = originalText;
-    }
+    });
 }
 
-/**
- * Test URLScan.io connection
- */
-testUrlscanBtn.addEventListener('click', () => {
-    testApiConnection(testUrlscanBtn, apiKeyInput, 'testUrlscanConnection', 'URLScan.io');
-});
+wireTest($("testUrlscan"), apiKeyInput, "testUrlscanConnection", "urlscan.io", null);
+wireTest($("testVt"), vtApiKeyInput, "testVirusTotalConnection", "VirusTotal", "https://www.virustotal.com/*");
+wireTest($("testAbuse"), abuseIpdbApiKeyInput, "testAbuseIpdbConnection", "AbuseIPDB", "https://api.abuseipdb.com/*");
+wireTest($("testNextDns"), nextdnsApiKeyInput, "testNextDnsConnection", "NextDNS", null);
 
-/**
- * Test VirusTotal connection
- * Firefox MV3 host permissions are opt-in, so request access first
- * (must happen here, inside the click handler, to count as a user gesture)
- */
-testVtBtn.addEventListener('click', async () => {
-    try {
-        const granted = await browser.permissions.request({
-            origins: ['https://www.virustotal.com/*']
-        });
-        if (!granted) {
-            showStatus('✗ VirusTotal needs permission to access www.virustotal.com. Grant it in the prompt, or via about:addons → Security Toolkit → Permissions.', false);
-            return;
-        }
-    } catch (error) {
-        console.error('Permission request failed:', error);
-    }
-    testApiConnection(testVtBtn, vtApiKeyInput, 'testVirusTotalConnection', 'VirusTotal');
-});
-
-/**
- * Test AbuseIPDB connection
- * Firefox MV3 host permissions are opt-in, so request access first
- */
-testAbuseBtn.addEventListener('click', async () => {
-    try {
-        const granted = await browser.permissions.request({
-            origins: ['https://api.abuseipdb.com/*']
-        });
-        if (!granted) {
-            showStatus('✗ AbuseIPDB needs permission to access api.abuseipdb.com. Grant it in the prompt, or via about:addons → Security Toolkit → Permissions.', false);
-            return;
-        }
-    } catch (error) {
-        console.error('Permission request failed:', error);
-    }
-    testApiConnection(testAbuseBtn, abuseIpdbApiKeyInput, 'testAbuseIpdbConnection', 'AbuseIPDB');
-});
-
-/**
- * Handle form submission
- */
-form.addEventListener('submit', async (e) => {
+// Save
+form.addEventListener("submit", (e) => {
     e.preventDefault();
-    
-    // Trim all inputs to remove whitespace
     const apiKey = apiKeyInput.value.trim();
-    const visibility = visibilitySelect.value;
-    const tags = tagsInput.value.trim();
     const nextdnsApiKey = nextdnsApiKeyInput.value.trim();
     const vtApiKey = vtApiKeyInput.value.trim();
     const abuseIpdbApiKey = abuseIpdbApiKeyInput.value.trim();
-    const notificationLevel = notificationLevelSelect.value;
+    const tags = tagsInput.value.trim();
 
-    // Update input fields with trimmed values
     apiKeyInput.value = apiKey;
     nextdnsApiKeyInput.value = nextdnsApiKey;
     vtApiKeyInput.value = vtApiKey;
     abuseIpdbApiKeyInput.value = abuseIpdbApiKey;
 
-    // Validate URLScan API key if provided
     if (apiKey && !validateApiKey(apiKey)) {
         showFieldError(apiKeyInput, apiKeyError, true);
-        showStatus('Please enter a valid URLScan.io API key (minimum 20 characters)', false);
+        showStatus("Please enter a valid urlscan.io API key (minimum 20 characters).", false);
+        apiKeyInput.focus();
         return;
     }
-    
     showFieldError(apiKeyInput, apiKeyError, false);
     showFieldError(nextdnsApiKeyInput, nextdnsKeyError, false);
 
-    // Show loading state
-    const originalText = saveButton.textContent;
-    saveButton.disabled = true;
-    saveButton.innerHTML = '<span class="loading"></span> Saving...';
+    Busy.run(saveButton, "Saving...", async () => {
+        try {
+            await browser.storage.sync.set({
+                urlscanApiKey: apiKey,
+                urlscanVisibility: visibilitySelect.value,
+                urlscanTags: tags || DEFAULTS.tags,
+                nextdnsApiKey,
+                vtApiKey,
+                abuseIpdbApiKey,
+                notificationLevel: notificationLevelSelect.value,
+                qsLiveMode: qsLiveModeSelect.value,
+                qsFollowClient: qsFollowClientCheckbox.checked,
+            });
+            showStatus("Settings saved. The context menu will update shortly.", true);
+            if (nextdnsApiKey) await fetchAndDisplayProfiles();
+            else profilesInfo.classList.remove("show");
+        } catch (error) {
+            console.error("Storage error:", error);
+            showStatus("Could not save the settings. Please try again.", false);
+        }
+    });
+});
 
+resetButton.addEventListener("click", () => {
+    if (!confirm("Reset all settings to their defaults? Your API keys are kept.")) return;
+    visibilitySelect.value = DEFAULTS.visibility;
+    tagsInput.value = DEFAULTS.tags;
+    notificationLevelSelect.value = DEFAULTS.notificationLevel;
+    qsLiveModeSelect.value = DEFAULTS.qsLiveMode;
+    qsFollowClientCheckbox.checked = DEFAULTS.qsFollowClient;
+    showStatus("Settings reset. Choose Save to apply.", true);
+});
+
+apiKeyInput.addEventListener("input", () => {
+    const value = apiKeyInput.value.trim();
+    showFieldError(apiKeyInput, apiKeyError, value.length > 0 && !validateApiKey(value));
+});
+
+let fetchTimeout;
+nextdnsApiKeyInput.addEventListener("input", () => {
+    clearTimeout(fetchTimeout);
+    fetchTimeout = setTimeout(fetchAndDisplayProfiles, 1000);
+});
+
+// Quick Scan live-fetch permission
+async function updateQsPermState() {
     try {
-        // Save to browser storage
-        await browser.storage.sync.set({
-            urlscanApiKey: apiKey,
-            urlscanVisibility: visibility,
-            urlscanTags: tags || DEFAULTS.tags,
-            nextdnsApiKey: nextdnsApiKey,
-            vtApiKey: vtApiKey,
-            abuseIpdbApiKey: abuseIpdbApiKey,
-            notificationLevel: notificationLevel
-        });
-        
-        showStatus('✓ All settings saved successfully! Context menu will update shortly.', true);
-        console.log('Settings saved:', { visibility, tags: tags || DEFAULTS.tags, hasNextDns: !!nextdnsApiKey });
-        
-        // Fetch profiles if NextDNS key is set
-        if (nextdnsApiKey) {
-            await fetchAndDisplayProfiles();
-        } else {
-            profilesInfo.classList.remove('show');
+        if (await browser.permissions.contains(QS_LIVE_PERMISSIONS)) {
+            qsPermState.textContent = "Live-fetch permissions granted. You can revoke them any time under about:addons > Security Toolkit > Permissions.";
+            qsGrantBtn.hidden = true;
         }
     } catch (error) {
-        console.error('Storage Error:', error);
-        showStatus('✗ Error saving settings. Please try again.', false);
-    } finally {
-        // Restore button state
-        saveButton.disabled = false;
-        saveButton.textContent = originalText;
+        console.error("Permission check failed:", error);
     }
-});
+}
 
-/**
- * Reset settings to defaults
- */
-resetButton.addEventListener('click', () => {
-    if (confirm('Are you sure you want to reset all settings to defaults? Your API keys will be kept.')) {
-        visibilitySelect.value = DEFAULTS.visibility;
-        tagsInput.value = DEFAULTS.tags;
-        notificationLevelSelect.value = DEFAULTS.notificationLevel;
-        showStatus('Settings reset to defaults. Click Save to apply.', true);
+qsGrantBtn.addEventListener("click", async () => {
+    try {
+        const granted = await browser.permissions.request(QS_LIVE_PERMISSIONS); // first await: keeps the user gesture
+        if (!granted) showStatus("Live fetch stays disabled. The offline Quick Scan still works.", false);
+    } catch (error) {
+        console.error("Permission request failed:", error);
     }
+    updateQsPermState();
 });
 
-/**
- * Real-time validation for URLScan API key
- */
-apiKeyInput.addEventListener('input', () => {
-    if (apiKeyInput.value.trim().length > 0) {
-        const isValid = validateApiKey(apiKeyInput.value);
-        showFieldError(apiKeyInput, apiKeyError, !isValid);
-    } else {
-        showFieldError(apiKeyInput, apiKeyError, false);
+// Scan queue: only a summary here, the work happens on the queue page
+async function loadQueueCount() {
+    try {
+        const response = await browser.runtime.sendMessage({ action: "getUrlScanQueue" });
+        if (response?.success) $("queueCount").textContent = response.queue.filter((i) => i.status === "pending").length;
+    } catch (error) {
+        console.error("Failed to load queue:", error);
     }
+}
+
+$("openQueue").addEventListener("click", () => {
+    browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1"), active: true });
 });
 
-/**
- * Real-time profile fetching for NextDNS
- */
-let fetchTimeout;
-nextdnsApiKeyInput.addEventListener('input', () => {
-    clearTimeout(fetchTimeout);
-    fetchTimeout = setTimeout(() => {
-        fetchAndDisplayProfiles();
-    }, 1000); // Debounce by 1 second
-});
-
-/**
- * Load saved settings when page loads
- */
-document.addEventListener('DOMContentLoaded', async () => {
+// Load saved settings
+document.addEventListener("DOMContentLoaded", async () => {
     try {
         const result = await browser.storage.sync.get([
-            'urlscanApiKey',
-            'urlscanVisibility',
-            'urlscanTags',
-            'nextdnsApiKey',
-            'vtApiKey',
-            'abuseIpdbApiKey',
-            'notificationLevel'
+            "urlscanApiKey", "urlscanVisibility", "urlscanTags", "nextdnsApiKey", "vtApiKey",
+            "abuseIpdbApiKey", "notificationLevel", "qsLiveMode", "qsFollowClient",
         ]);
-        
-        // Populate form with saved values
-        if (result.urlscanApiKey) {
-            apiKeyInput.value = result.urlscanApiKey;
-        }
-        
-        if (result.urlscanVisibility) {
-            visibilitySelect.value = result.urlscanVisibility;
-        } else {
-            visibilitySelect.value = DEFAULTS.visibility;
-        }
-        
-        if (result.urlscanTags) {
-            tagsInput.value = result.urlscanTags;
-        } else {
-            tagsInput.value = DEFAULTS.tags;
-        }
-        
+        apiKeyInput.value = result.urlscanApiKey || "";
+        visibilitySelect.value = result.urlscanVisibility || DEFAULTS.visibility;
+        tagsInput.value = result.urlscanTags || DEFAULTS.tags;
+        vtApiKeyInput.value = result.vtApiKey || "";
+        abuseIpdbApiKeyInput.value = result.abuseIpdbApiKey || "";
+        notificationLevelSelect.value = result.notificationLevel || DEFAULTS.notificationLevel;
+        qsLiveModeSelect.value = result.qsLiveMode || DEFAULTS.qsLiveMode;
+        qsFollowClientCheckbox.checked = result.qsFollowClient ?? DEFAULTS.qsFollowClient;
+        updateQsPermState();
+        loadQueueCount();
         if (result.nextdnsApiKey) {
             nextdnsApiKeyInput.value = result.nextdnsApiKey;
             await fetchAndDisplayProfiles();
         }
-
-        if (result.vtApiKey) {
-            vtApiKeyInput.value = result.vtApiKey;
-        }
-
-        if (result.abuseIpdbApiKey) {
-            abuseIpdbApiKeyInput.value = result.abuseIpdbApiKey;
-        }
-
-        notificationLevelSelect.value = result.notificationLevel || DEFAULTS.notificationLevel;
-        
-        console.log('Settings loaded successfully');
     } catch (error) {
-        console.error('Error loading settings:', error);
-        showStatus('Error loading saved settings', false);
+        console.error("Error loading settings:", error);
+        showStatus("Could not load the saved settings.", false);
     }
 });
-
-// Log initialization
-console.log('Options page initialized');
-
-/**
- * Load and display URLScan queue
- */
-async function loadQueue() {
-    try {
-        const response = await browser.runtime.sendMessage({ action: 'getUrlScanQueue' });
-        
-        if (response.success) {
-            const queue = response.queue;
-            const pendingCount = queue.filter(item => item.status === 'pending').length;
-            
-            if (queue.length === 0) {
-                queueEmpty.style.display = 'block';
-                queueList.style.display = 'none';
-            } else {
-                queueEmpty.style.display = 'none';
-                queueList.style.display = 'block';
-                queueCount.textContent = pendingCount;
-                
-                // Render queue items
-                queueItems.innerHTML = queue.map(item => {
-                    const statusText = {
-                        pending: '⏳ Pending',
-                        scanning: '🔍 Scanning',
-                        completed: '✓ Completed',
-                        failed: '✗ Failed'
-                    }[item.status] || item.status;
-                    
-                    return `
-                        <div class="queue-item" data-url="${encodeURIComponent(item.url)}">
-                            <div class="queue-item-url">${escapeHtml(item.url)}</div>
-                            <div class="queue-item-status ${item.status}">${statusText}</div>
-                            <button class="queue-item-remove" data-url="${encodeURIComponent(item.url)}" title="Remove from queue">×</button>
-                        </div>
-                    `;
-                }).join('');
-                
-                // Add event listeners to remove buttons
-                document.querySelectorAll('.queue-item-remove').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        const url = decodeURIComponent(e.target.dataset.url);
-                        await browser.runtime.sendMessage({ 
-                            action: 'removeFromQueue', 
-                            url: url 
-                        });
-                        loadQueue();
-                    });
-                });
-            }
-        }
-    } catch (error) {
-        console.error('Failed to load queue:', error);
-    }
-}
-
-/**
- * Escape HTML to prevent XSS
- */
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-
-/**
- * Refresh queue display
- */
-refreshQueueBtn.addEventListener('click', () => {
-    loadQueue();
-});
-
-/**
- * Clear queue
- */
-clearQueueBtn.addEventListener('click', async () => {
-    if (confirm('Are you sure you want to clear the entire scan queue?')) {
-        await browser.runtime.sendMessage({ action: 'clearQueue' });
-        loadQueue();
-        showStatus('Queue cleared', true);
-    }
-});
-
-/**
- * Process queue
- */
-processQueueBtn.addEventListener('click', async () => {
-    processQueueBtn.disabled = true;
-    processQueueBtn.textContent = '🚀 Processing...';
-    
-    await browser.runtime.sendMessage({ action: 'processQueue' });
-    
-    // Poll for updates
-    const pollInterval = setInterval(() => {
-        loadQueue();
-    }, 3000);
-    
-    // Stop polling after 2 minutes
-    setTimeout(() => {
-        clearInterval(pollInterval);
-        processQueueBtn.disabled = false;
-        processQueueBtn.textContent = '🚀 Process Queue';
-        loadQueue();
-    }, 120000);
-});
-
-// Load queue on page load
-loadQueue();
-
-// Refresh queue every 5 seconds if visible
-setInterval(() => {
-    if (document.visibilityState === 'visible') {
-        loadQueue();
-    }
-}, 5000);

@@ -1,0 +1,82 @@
+/* Security Toolkit - toolbar popup (builds on brand.css) */
+
+body.popup {
+    width: 340px;
+    min-height: 0;
+}
+
+.popup-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+}
+
+.popup-head .tool-name {
+    font-family: var(--font-head);
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--muted);
+}
+
+.popup-body {
+    padding: var(--space-4);
+    display: grid;
+    gap: var(--space-3);
+}
+
+.popup-body .card {
+    padding: var(--space-4);
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+    margin: var(--space-3) 0;
+}
+
+.stat {
+    background: var(--soft);
+    border-radius: var(--radius-control);
+    padding: var(--space-2);
+    text-align: center;
+}
+
+.stat .n {
+    font-family: var(--font-head);
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.stat .l {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+.actions {
+    display: grid;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+}
+
+.actions .btn {
+    width: 100%;
+}
+
+.danger-text {
+    color: var(--error);
+}
+
+.empty {
+    color: var(--muted);
+    font-size: 13.5px;
+}
+
+.quota {
+    text-align: center;
+    font-size: 13px;
+}

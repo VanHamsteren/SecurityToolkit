@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="color-scheme" content="light dark" />
+        <title>Security Toolkit - Analysis</title>
+        <link rel="stylesheet" href="brand.css" />
+        <link rel="stylesheet" href="report.css" />
+    </head>
+    <body>
+        <header class="site-header">
+            <a class="brand" href="report.html" aria-label="Security Toolkit, recent analyses">
+                <img class="logo logo-light" src="img/logo-wide.png" alt="PaulRutten.nl" width="147" height="44" />
+                <img class="logo logo-dark" src="img/logo-wide-white.png" alt="" width="147" height="44" />
+                <span class="tool-name">Security Toolkit</span>
+            </a>
+            <span class="spacer"></span>
+            <button type="button" class="btn small" id="btnMarkdown">Copy as Markdown</button>
+            <button type="button" class="btn small" id="btnJson">Download JSON</button>
+            <button type="button" class="btn small" id="btnQueue">Scan queue</button>
+            <button type="button" class="btn small" id="btnHistory">Recent analyses</button>
+        </header>
+        <main id="app">
+            <p class="muted">Loading...</p>
+        </main>
+        <script src="busy.js"></script>
+        <script src="checks.js"></script>
+        <script src="report.js"></script>
+    </body>
+</html>

@@ -3,787 +3,223 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Security Tools Extension - Settings</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-
-            body {
-                font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-                background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
-                color: #333;
-                min-height: 100vh;
-                padding: 40px 20px;
-                line-height: 1.6;
-            }
-
-            .container {
-                max-width: 900px;
-                margin: 0 auto;
-                background: white;
-                border-radius: 16px;
-                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-                overflow: hidden;
-            }
-
-            .header {
-                background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
-                color: white;
-                padding: 40px;
-                text-align: center;
-            }
-
-            .header h1 {
-                font-size: 32px;
-                font-weight: 700;
-                margin-bottom: 10px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 12px;
-            }
-
-            .header p {
-                font-size: 16px;
-                opacity: 0.95;
-            }
-
-            .content {
-                padding: 40px;
-            }
-
-            .info-box {
-                background: #eff6ff;
-                border-left: 4px solid #2563eb;
-                padding: 20px;
-                border-radius: 8px;
-                margin-bottom: 30px;
-            }
-
-            .info-box h2 {
-                color: #1e40af;
-                font-size: 18px;
-                font-weight: 600;
-                margin-bottom: 12px;
-            }
-
-            .info-box p {
-                color: #1e40af;
-                font-size: 14px;
-                margin-bottom: 8px;
-            }
-
-            .info-box ul {
-                list-style: none;
-                margin-top: 12px;
-            }
-
-            .info-box li {
-                padding: 8px 0;
-                color: #1e40af;
-            }
-
-            .info-box a {
-                color: #2563eb;
-                text-decoration: none;
-                font-weight: 500;
-                transition: color 0.2s;
-            }
-
-            .info-box a:hover {
-                color: #1d4ed8;
-                text-decoration: underline;
-            }
-
-            .form-section {
-                margin-bottom: 40px;
-                padding-bottom: 30px;
-                border-bottom: 2px solid #f3f4f6;
-            }
-
-            .form-section:last-of-type {
-                border-bottom: none;
-            }
-
-            .form-section h2 {
-                color: #1e3a8a;
-                font-size: 22px;
-                font-weight: 600;
-                margin-bottom: 8px;
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-
-            .form-section .section-description {
-                color: #6b7280;
-                font-size: 14px;
-                margin-bottom: 20px;
-            }
-
-            .form-group {
-                margin-bottom: 24px;
-            }
-
-            label {
-                display: block;
-                font-weight: 600;
-                color: #374151;
-                margin-bottom: 8px;
-                font-size: 14px;
-            }
-
-            .label-description {
-                font-weight: 400;
-                color: #6b7280;
-                font-size: 13px;
-                margin-top: 4px;
-            }
-
-            .input-wrapper {
-                position: relative;
-            }
-
-            input[type="text"],
-            input[type="password"],
-            select,
-            textarea {
-                width: 100%;
-                padding: 12px 16px;
-                border: 2px solid #e5e7eb;
-                border-radius: 8px;
-                font-size: 15px;
-                font-family: inherit;
-                transition: all 0.2s;
-                background: white;
-            }
-
-            input[type="text"]:focus,
-            input[type="password"]:focus,
-            select:focus,
-            textarea:focus {
-                border-color: #2563eb;
-                outline: none;
-                box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-            }
-
-            input.error,
-            select.error,
-            textarea.error {
-                border-color: #ef4444;
-            }
-
-            .toggle-password {
-                position: absolute;
-                right: 12px;
-                top: 50%;
-                transform: translateY(-50%);
-                background: none;
-                border: none;
-                color: #6b7280;
-                cursor: pointer;
-                padding: 8px;
-                font-size: 14px;
-                font-weight: 500;
-                transition: color 0.2s;
-            }
-
-            .toggle-password:hover {
-                color: #2563eb;
-            }
-
-            textarea {
-                resize: vertical;
-                min-height: 80px;
-                font-family: inherit;
-            }
-
-            .input-hint {
-                font-size: 13px;
-                color: #6b7280;
-                margin-top: 6px;
-            }
-
-            .error-message {
-                color: #ef4444;
-                font-size: 13px;
-                margin-top: 6px;
-                display: none;
-            }
-
-            .error-message.show {
-                display: block;
-            }
-
-            .profiles-info {
-                background: #f0fdf4;
-                border: 2px solid #86efac;
-                border-radius: 8px;
-                padding: 16px;
-                margin-top: 12px;
-                display: none;
-            }
-
-            .profiles-info.show {
-                display: block;
-            }
-
-            .profiles-info h4 {
-                color: #166534;
-                font-size: 14px;
-                font-weight: 600;
-                margin-bottom: 8px;
-            }
-
-            .profiles-info ul {
-                list-style: none;
-                padding: 0;
-            }
-
-            .profiles-info li {
-                color: #166534;
-                padding: 4px 0;
-                font-size: 14px;
-            }
-
-            .button-group {
-                display: flex;
-                gap: 12px;
-                margin-top: 30px;
-            }
-
-            button {
-                flex: 1;
-                padding: 14px 24px;
-                border: none;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: all 0.2s;
-                font-family: inherit;
-            }
-
-            button.primary {
-                background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-                color: white;
-            }
-
-            button.primary:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
-            }
-
-            button.primary:active {
-                transform: translateY(0);
-            }
-
-            button.primary:disabled {
-                opacity: 0.6;
-                cursor: not-allowed;
-                transform: none;
-            }
-
-            button.secondary {
-                background: #f3f4f6;
-                color: #374151;
-            }
-
-            button.secondary:hover {
-                background: #e5e7eb;
-            }
-
-            #status {
-                margin-top: 20px;
-                padding: 16px;
-                border-radius: 8px;
-                font-weight: 500;
-                text-align: center;
-                display: none;
-                animation: slideIn 0.3s ease;
-            }
-
-            #status.show {
-                display: block;
-            }
-
-            #status.success {
-                background: #d1fae5;
-                color: #065f46;
-                border: 2px solid #10b981;
-            }
-
-            #status.error {
-                background: #fee2e2;
-                color: #991b1b;
-                border: 2px solid #ef4444;
-            }
-
-            @keyframes slideIn {
-                from {
-                    opacity: 0;
-                    transform: translateY(-10px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
-            }
-
-            .loading {
-                display: inline-block;
-                width: 16px;
-                height: 16px;
-                border: 2px solid rgba(255, 255, 255, 0.3);
-                border-top-color: white;
-                border-radius: 50%;
-                animation: spin 0.6s linear infinite;
-            }
-
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-
-            .footer {
-                background: #f9fafb;
-                padding: 30px 40px;
-                border-top: 1px solid #e5e7eb;
-            }
-
-            .footer h3 {
-                color: #374151;
-                font-size: 16px;
-                font-weight: 600;
-                margin-bottom: 12px;
-            }
-
-            .footer p {
-                color: #6b7280;
-                font-size: 14px;
-                margin-bottom: 8px;
-            }
-
-            .footer a {
-                color: #2563eb;
-                text-decoration: none;
-            }
-
-            .footer a:hover {
-                text-decoration: underline;
-            }
-
-            .badge {
-                display: inline-block;
-                background: #dbeafe;
-                color: #1e40af;
-                padding: 4px 12px;
-                border-radius: 12px;
-                font-size: 12px;
-                font-weight: 600;
-                margin-left: 10px;
-            }
-
-            .badge.coming-soon {
-                background: #fef3c7;
-                color: #92400e;
-            }
-
-            .queue-item {
-                background: white;
-                border: 1px solid #e5e7eb;
-                border-radius: 6px;
-                padding: 12px;
-                margin-bottom: 8px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                gap: 12px;
-            }
-
-            .queue-item-url {
-                flex: 1;
-                font-size: 13px;
-                color: #374151;
-                word-break: break-all;
-                font-family: monospace;
-            }
-
-            .queue-item-status {
-                font-size: 12px;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-weight: 500;
-                white-space: nowrap;
-            }
-
-            .queue-item-status.pending {
-                background: #dbeafe;
-                color: #1e40af;
-            }
-
-            .queue-item-status.scanning {
-                background: #fef3c7;
-                color: #92400e;
-            }
-
-            .queue-item-status.completed {
-                background: #d1fae5;
-                color: #065f46;
-            }
-
-            .queue-item-status.failed {
-                background: #fee2e2;
-                color: #991b1b;
-            }
-
-            .queue-item-remove {
-                background: none;
-                border: none;
-                color: #ef4444;
-                cursor: pointer;
-                padding: 4px 8px;
-                border-radius: 4px;
-                font-size: 18px;
-                line-height: 1;
-                transition: background 0.2s;
-            }
-
-            .queue-item-remove:hover {
-                background: #fee2e2;
-            }
-        </style>
+        <meta name="color-scheme" content="light dark" />
+        <title>Security Toolkit - Settings</title>
+        <link rel="stylesheet" href="brand.css" />
+        <link rel="stylesheet" href="options.css" />
     </head>
 
     <body>
-        <div class="container">
-            <div class="header">
-                <h1>
-                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                    </svg>
-                    Security Tools Extension
-                </h1>
-                <p>Manage your security integrations</p>
+        <header class="site-header">
+            <a class="brand" href="report.html" aria-label="Security Toolkit, recent analyses">
+                <img class="logo logo-light" src="img/logo-wide.png" alt="PaulRutten.nl" width="147" height="44" />
+                <img class="logo logo-dark" src="img/logo-wide-white.png" alt="" width="147" height="44" />
+                <span class="tool-name">Security Toolkit</span>
+            </a>
+        </header>
+
+        <main class="settings">
+            <div class="intro">
+                <div class="eyebrow">Settings</div>
+                <h1>Connect your security tools</h1>
+                <p>
+                    Right-click a link, choose Security Analysis and then Analyse link. The result opens in one page that
+                    combines every tool you set up here. Each tool is optional: the built-in Quick Scan works without an account.
+                </p>
             </div>
 
-            <div class="content">
-                <div class="info-box">
-                    <h2>🛡️ About This Extension</h2>
-                    <p>
-                        This extension integrates multiple security tools directly into your browser's context menu.
-                        Right-click any link to analyze it with URLScan.io, manage it with NextDNS, and more.
+            <nav class="jump" aria-label="Jump to a section">
+                <a href="#sec-urlscan">urlscan.io</a>
+                <a href="#sec-virustotal">VirusTotal</a>
+                <a href="#sec-abuseipdb">AbuseIPDB</a>
+                <a href="#sec-nextdns">NextDNS</a>
+                <a href="#sec-quickscan">Quick Scan</a>
+                <a href="#sec-other">Notifications and queue</a>
+            </nav>
+
+            <form id="settingsForm">
+                <!-- urlscan.io -->
+                <section class="card form-section" id="sec-urlscan">
+                    <h2>urlscan.io</h2>
+                    <p class="section-description">
+                        Loads the page in a sandbox and returns a screenshot and a verdict.
+                        <a href="https://urlscan.io/user/signup" target="_blank" rel="noopener noreferrer">Create account</a> ·
+                        <a href="https://urlscan.io/user/profile/" target="_blank" rel="noopener noreferrer">Get API key</a>
                     </p>
+
+                    <div class="form-group">
+                        <label for="apiKey">API key</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="apiKey" placeholder="Paste your urlscan.io API key" autocomplete="off" data-testid="api-key-input" />
+                            <button type="button" class="btn small quiet toggle-password" id="toggleApiKey" data-testid="toggle-api-key-btn">Show</button>
+                        </div>
+                        <div class="error-message" id="apiKeyError">Please enter a valid API key (minimum 20 characters)</div>
+                        <div class="input-hint">Keep your API key private.</div>
+                        <button type="button" id="testUrlscan" class="btn small" data-testid="test-urlscan-btn">Test connection</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="visibility">Scan visibility</label>
+                        <select id="visibility" data-testid="visibility-select">
+                            <option value="public">Public: visible to everyone</option>
+                            <option value="unlisted" selected>Unlisted: only via direct link</option>
+                            <option value="private">Private: only you can see it</option>
+                        </select>
+                        <div class="input-hint">Recommended: unlisted or private for sensitive URLs.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tags">Custom tags</label>
+                        <textarea id="tags" placeholder="firefox, extension, security" data-testid="tags-input"></textarea>
+                        <div class="input-hint">Comma-separated. Example: firefox, extension, phishing-check</div>
+                    </div>
+                </section>
+
+                <!-- VirusTotal -->
+                <section class="card form-section" id="sec-virustotal">
+                    <h2>VirusTotal</h2>
+                    <p class="section-description">
+                        Asks 70+ antivirus engines and blocklist services about the URL.
+                        <a href="https://www.virustotal.com/gui/join-us" target="_blank" rel="noopener noreferrer">Create account</a> ·
+                        <a href="https://www.virustotal.com/gui/my-apikey" target="_blank" rel="noopener noreferrer">Get API key</a>
+                    </p>
+                    <div class="form-group">
+                        <label for="vtApiKey">API key</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="vtApiKey" placeholder="Paste your VirusTotal API key" autocomplete="off" data-testid="vt-api-key-input" />
+                            <button type="button" class="btn small quiet toggle-password" id="toggleVtKey" data-testid="toggle-vt-key-btn">Show</button>
+                        </div>
+                        <div class="input-hint">Free tier: 4 requests per minute, 500 per day.</div>
+                        <button type="button" id="testVt" class="btn small" data-testid="test-vt-btn">Test connection</button>
+                    </div>
+                </section>
+
+                <!-- AbuseIPDB -->
+                <section class="card form-section" id="sec-abuseipdb">
+                    <h2>AbuseIPDB</h2>
+                    <p class="section-description">
+                        Checks the server's IP address against community abuse reports. Domains are resolved to their IP automatically.
+                        <a href="https://www.abuseipdb.com/register" target="_blank" rel="noopener noreferrer">Create account</a> ·
+                        <a href="https://www.abuseipdb.com/account/api" target="_blank" rel="noopener noreferrer">Get API key</a>
+                    </p>
+                    <div class="form-group">
+                        <label for="abuseIpdbApiKey">API key</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="abuseIpdbApiKey" placeholder="Paste your AbuseIPDB API key" autocomplete="off" data-testid="abuseipdb-api-key-input" />
+                            <button type="button" class="btn small quiet toggle-password" id="toggleAbuseKey" data-testid="toggle-abuseipdb-key-btn">Show</button>
+                        </div>
+                        <div class="input-hint">Free tier: 1,000 checks per day.</div>
+                        <button type="button" id="testAbuse" class="btn small" data-testid="test-abuseipdb-btn">Test connection</button>
+                    </div>
+                </section>
+
+                <!-- NextDNS -->
+                <section class="card form-section" id="sec-nextdns">
+                    <h2>NextDNS</h2>
+                    <p class="section-description">
+                        Where you block the domains you find. One click adds them to the denylist of your profiles.
+                        <a href="https://my.nextdns.io/signup" target="_blank" rel="noopener noreferrer">Create account</a> ·
+                        <a href="https://my.nextdns.io/account" target="_blank" rel="noopener noreferrer">Get API key</a>
+                    </p>
+                    <div class="form-group">
+                        <label for="nextdnsApiKey">API key</label>
+                        <div class="input-wrapper">
+                            <input type="password" id="nextdnsApiKey" placeholder="Paste your NextDNS API key" autocomplete="off" data-testid="nextdns-api-key-input" />
+                            <button type="button" class="btn small quiet toggle-password" id="toggleNextDnsKey" data-testid="toggle-nextdns-key-btn">Show</button>
+                        </div>
+                        <div class="error-message" id="nextdnsKeyError">Please enter a valid NextDNS API key</div>
+                        <div class="input-hint">Find it in your NextDNS account settings.</div>
+                        <button type="button" id="testNextDns" class="btn small" data-testid="test-nextdns-btn">Test connection</button>
+                    </div>
+                    <div class="profiles-info" id="profilesInfo">
+                        <h4>Connected profiles</h4>
+                        <ul id="profilesList"></ul>
+                    </div>
+                </section>
+
+                <!-- Quick Scan -->
+                <section class="card form-section" id="sec-quickscan">
+                    <h2>Quick Scan (built-in)</h2>
+                    <p class="section-description">
+                        The extension's own analysis, no account needed. It dissects the link (Safe Links unwrapping, base64, tracking IDs, look-alike domains)
+                        and looks up DNS, network (ASN) and domain age. The optional live fetch retrieves the page from your own connection without cookies
+                        and reads it as text only: nothing is rendered or executed.
+                    </p>
+
+                    <div class="form-group">
+                        <label for="qsLiveMode">Live fetch</label>
+                        <select id="qsLiveMode" data-testid="qs-live-mode-select">
+                            <option value="ask" selected>Ask each time (recommended)</option>
+                            <option value="auto">Automatic, right after the offline analysis</option>
+                        </select>
+                        <div class="input-hint">Contacting the target reveals your IP address and can confirm a personalised link to the sender.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="qsFollowClient" class="check">
+                            <input type="checkbox" id="qsFollowClient" checked data-testid="qs-follow-client-checkbox" />
+                            Follow meta-refresh and JavaScript redirects
+                        </label>
+                        <div class="input-hint">Only literal redirect targets found in the page source are followed, up to 5 extra hops.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <button type="button" id="qsGrant" class="btn small" data-testid="qs-grant-btn">Grant live-fetch permissions</button>
+                        <div class="input-hint" id="qsPermState">Live fetch needs access to all websites and to network requests (to record redirects and strip cookies). It is asked on first use if you skip this.</div>
+                    </div>
+                </section>
+
+                <!-- Notifications and queue -->
+                <section class="card form-section" id="sec-other">
+                    <h2>Notifications and scan queue</h2>
+                    <div class="form-group">
+                        <label for="notificationLevel">Notification level</label>
+                        <select id="notificationLevel" data-testid="notification-level-select">
+                            <option value="all">All: success, progress and errors</option>
+                            <option value="errors" selected>Errors only (recommended)</option>
+                            <option value="none">None: completely silent</option>
+                        </select>
+                        <div class="input-hint">Progress is now shown on the results page. Everything is still logged to the browser console.</div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="queue-summary">
+                            <div>
+                                <strong>Scan queue:</strong> <span id="queueCount">0</span> link(s) waiting
+                                <div class="input-hint">Collect links during the day, scan them all at once on the queue page, then block the bad ones.</div>
+                            </div>
+                            <button type="button" id="openQueue" class="btn small">Open the scan queue</button>
+                        </div>
+                    </div>
+                </section>
+
+                <div class="save-bar">
+                    <button type="button" class="btn quiet" id="reset" data-testid="reset-btn">Reset to defaults</button>
+                    <button type="submit" class="btn primary" id="save" data-testid="save-btn">Save all settings</button>
                 </div>
 
-                <form id="settingsForm">
-                    <!-- URLScan.io Section -->
-                    <div class="form-section">
-                        <h2>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-                            </svg>
-                            URLScan.io Configuration
-                        </h2>
-                        <p class="section-description">
-                            URLScan.io provides detailed security analysis and screenshots of websites.
-                            <a href="https://urlscan.io/user/signup" target="_blank">Create account</a> |
-                            <a href="https://urlscan.io/user/profile/" target="_blank">Get API key</a>
-                        </p>
+                <div id="status" role="status" aria-live="polite"></div>
+            </form>
 
-                        <div class="form-group">
-                            <label for="apiKey">
-                                API Key
-                                <span class="label-description">Your personal urlscan.io API key</span>
-                            </label>
-                            <div class="input-wrapper">
-                                <input 
-                                    type="password" 
-                                    id="apiKey" 
-                                    placeholder="Enter your urlscan.io API Key" 
-                                    autocomplete="off"
-                                    data-testid="api-key-input"
-                                />
-                                <button type="button" class="toggle-password" id="toggleApiKey" data-testid="toggle-api-key-btn">
-                                    Show
-                                </button>
-                            </div>
-                            <div class="error-message" id="apiKeyError">Please enter a valid API key (minimum 20 characters)</div>
-                            <div class="input-hint">Keep your API key private and never share it with anyone.</div>
-                            <button type="button" id="testUrlscan" class="secondary" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px;" data-testid="test-urlscan-btn">
-                                🔍 Test Connection
-                            </button>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="visibility">
-                                Scan Visibility
-                                <span class="label-description">Control who can see your scans</span>
-                            </label>
-                            <select id="visibility" data-testid="visibility-select">
-                                <option value="public">Public - Visible to everyone</option>
-                                <option value="unlisted" selected>Unlisted - Only via direct link</option>
-                                <option value="private">Private - Only you can see it</option>
-                            </select>
-                            <div class="input-hint">Recommended: Unlisted or Private for sensitive URLs</div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="tags">
-                                Custom Tags
-                                <span class="label-description">Organize your scans with tags (comma-separated)</span>
-                            </label>
-                            <textarea 
-                                id="tags" 
-                                placeholder="firefox, extension, security"
-                                data-testid="tags-input"
-                            ></textarea>
-                            <div class="input-hint">Example: firefox, extension, phishing-check</div>
-                        </div>
-                    </div>
-
-                    <!-- NextDNS Section -->
-                    <div class="form-section">
-                        <h2>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                            </svg>
-                            NextDNS Configuration
-                        </h2>
-                        <p class="section-description">
-                            NextDNS provides DNS-level security and privacy protection.
-                            <a href="https://my.nextdns.io/signup" target="_blank">Create account</a> |
-                            <a href="https://my.nextdns.io/account" target="_blank">Get API key</a>
-                        </p>
-
-                        <div class="form-group">
-                            <label for="nextdnsApiKey">
-                                NextDNS API Key
-                                <span class="label-description">Your NextDNS API key for managing profiles</span>
-                            </label>
-                            <div class="input-wrapper">
-                                <input 
-                                    type="password" 
-                                    id="nextdnsApiKey" 
-                                    placeholder="Enter your NextDNS API Key" 
-                                    autocomplete="off"
-                                    data-testid="nextdns-api-key-input"
-                                />
-                                <button type="button" class="toggle-password" id="toggleNextDnsKey" data-testid="toggle-nextdns-key-btn">
-                                    Show
-                                </button>
-                            </div>
-                            <div class="error-message" id="nextdnsKeyError">Please enter a valid NextDNS API key</div>
-                            <div class="input-hint">Find your API key in NextDNS account settings.</div>
-                            <button type="button" id="testNextDns" class="secondary" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px;" data-testid="test-nextdns-btn">
-                                🔍 Test Connection
-                            </button>
-                        </div>
-
-                        <div class="profiles-info" id="profilesInfo">
-                            <h4>✓ Connected Profiles:</h4>
-                            <ul id="profilesList"></ul>
-                        </div>
-                    </div>
-
-                    <!-- VirusTotal Section -->
-                    <div class="form-section">
-                        <h2>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="12" cy="12" r="10"></circle>
-                                <path d="M8 8l8 4-8 4z"></path>
-                            </svg>
-                            VirusTotal Configuration
-                        </h2>
-                        <p class="section-description">
-                            VirusTotal analyzes URLs with 70+ antivirus engines and blocklist services.
-                            <a href="https://www.virustotal.com/gui/join-us" target="_blank">Create account</a> |
-                            <a href="https://www.virustotal.com/gui/my-apikey" target="_blank">Get API key</a>
-                        </p>
-
-                        <div class="form-group">
-                            <label for="vtApiKey">
-                                VirusTotal API Key
-                                <span class="label-description">Your personal VirusTotal API key</span>
-                            </label>
-                            <div class="input-wrapper">
-                                <input
-                                    type="password"
-                                    id="vtApiKey"
-                                    placeholder="Enter your VirusTotal API Key"
-                                    autocomplete="off"
-                                    data-testid="vt-api-key-input"
-                                />
-                                <button type="button" class="toggle-password" id="toggleVtKey" data-testid="toggle-vt-key-btn">
-                                    Show
-                                </button>
-                            </div>
-                            <div class="input-hint">Free tier: 4 requests per minute, 500 per day. Keep your API key private.</div>
-                            <button type="button" id="testVt" class="secondary" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px;" data-testid="test-vt-btn">
-                                🔍 Test Connection
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- AbuseIPDB Section -->
-                    <div class="form-section">
-                        <h2>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                                <line x1="12" y1="8" x2="12" y2="12"></line>
-                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
-                            </svg>
-                            AbuseIPDB Configuration
-                        </h2>
-                        <p class="section-description">
-                            AbuseIPDB checks IP reputation based on community abuse reports. Domains are resolved to their IP automatically.
-                            <a href="https://www.abuseipdb.com/register" target="_blank">Create account</a> |
-                            <a href="https://www.abuseipdb.com/account/api" target="_blank">Get API key</a>
-                        </p>
-
-                        <div class="form-group">
-                            <label for="abuseIpdbApiKey">
-                                AbuseIPDB API Key
-                                <span class="label-description">Your personal AbuseIPDB API key</span>
-                            </label>
-                            <div class="input-wrapper">
-                                <input
-                                    type="password"
-                                    id="abuseIpdbApiKey"
-                                    placeholder="Enter your AbuseIPDB API Key"
-                                    autocomplete="off"
-                                    data-testid="abuseipdb-api-key-input"
-                                />
-                                <button type="button" class="toggle-password" id="toggleAbuseKey" data-testid="toggle-abuseipdb-key-btn">
-                                    Show
-                                </button>
-                            </div>
-                            <div class="input-hint">Free tier: 1,000 checks per day. Keep your API key private.</div>
-                            <button type="button" id="testAbuse" class="secondary" style="margin-top: 10px; width: auto; padding: 8px 16px; font-size: 14px;" data-testid="test-abuseipdb-btn">
-                                🔍 Test Connection
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Notifications Section -->
-                    <div class="form-section">
-                        <h2>
-                            🔔 Notifications
-                        </h2>
-                        <p class="section-description">
-                            Control how many notification toasts the extension shows.
-                        </p>
-
-                        <div class="form-group">
-                            <label for="notificationLevel">
-                                Notification Level
-                                <span class="label-description">Reduce noise when processing large batches</span>
-                            </label>
-                            <select id="notificationLevel" data-testid="notification-level-select">
-                                <option value="all">All - Success, progress and errors</option>
-                                <option value="errors" selected>Errors only - Recommended for batch scanning</option>
-                                <option value="none">None - Completely silent</option>
-                            </select>
-                            <div class="input-hint">All activity is still logged to the browser console regardless of this setting.</div>
-                        </div>
-                    </div>
-
-                    <!-- Scan Queue Section -->
-                    <div class="form-section">
-                        <h2>
-                            🚀 URLScan.io Scan Queue
-                        </h2>
-                        <p class="section-description">
-                            Queue URLs for batch scanning. Add URLs throughout the day and process them all at once.
-                        </p>
-
-                        <div id="queueSection">
-                            <div id="queueEmpty" class="info-box" style="background: #f9fafb; border-left-color: #9ca3af; display: none;">
-                                <p style="color: #6b7280;">No URLs in scan queue. Right-click any link and select "Add to Scan Queue" to get started.</p>
-                            </div>
-
-                            <div id="queueList" style="display: none;">
-                                <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                                        <h3 style="margin: 0; font-size: 16px; color: #374151;">
-                                            <span id="queueCount">0</span> URL(s) in Queue
-                                        </h3>
-                                        <div style="display: flex; gap: 8px;">
-                                            <button type="button" id="refreshQueue" class="secondary" style="padding: 6px 12px; font-size: 14px; flex: none;">
-                                                🔄 Refresh
-                                            </button>
-                                            <button type="button" id="clearQueue" class="secondary" style="padding: 6px 12px; font-size: 14px; flex: none; background: #fef2f2; color: #991b1b;">
-                                                🗑️ Clear All
-                                            </button>
-                                        </div>
-                                    </div>
-                                    
-                                    <div id="queueItems" style="max-height: 400px; overflow-y: auto;">
-                                        <!-- Queue items will be inserted here -->
-                                    </div>
-                                </div>
-
-                                <div class="button-group">
-                                    <button type="button" id="processQueue" class="primary" data-testid="process-queue-btn">
-                                        🚀 Process Queue
-                                    </button>
-                                </div>
-
-                                <div class="input-hint" style="margin-top: 12px;">
-                                    <strong>Rate Limiting:</strong> URLs are scanned with 2.5 second delays to respect URLScan.io rate limits.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Future Integrations Section -->
-                    <div class="form-section">
-                        <h2>
-                            🚀 Future Security Tools
-                            <span class="badge coming-soon">Coming Soon</span>
-                        </h2>
-                        <p class="section-description">
-                            We're working on adding more security integrations:
-                        </p>
-                        <ul style="margin-left: 20px; color: #6b7280; font-size: 14px;">
-                            <li>• <strong>Hybrid Analysis</strong> - Sandbox URL detonation</li>
-                            <li>• <strong>Have I Been Pwned</strong> - Breach checking</li>
-                            <li>• <strong>Batch Report</strong> - One consolidated report for queue scans</li>
-                        </ul>
-                    </div>
-
-                    <div class="button-group">
-                        <button type="button" class="secondary" id="reset" data-testid="reset-btn">Reset to Defaults</button>
-                        <button type="submit" class="primary" id="save" data-testid="save-btn">Save All Settings</button>
-                    </div>
-
-                    <div id="status"></div>
-                </form>
-            </div>
-
-            <div class="footer">
-                <h3>Credits & Information</h3>
-                <p><strong>Developed by:</strong> Paul Rutten (<a href="mailto:securitytoolkit@paulrutten.nl">securitytoolkit@paulrutten.nl</a>)</p>
-                <p>If you like my work and want to support it (or my rampaging coffee addiction), consider making a donation via 
-                    <a href="https://www.buymeacoffee.com/nyana" target="_blank">☕ Buy Me a Coffee</a>.
+            <footer class="credits">
+                <h3>Credits and information</h3>
+                <p>Developed by Paul Rutten (<a href="mailto:securitytoolkit@paulrutten.nl">securitytoolkit@paulrutten.nl</a>).</p>
+                <p>
+                    If you like my work, you can support it via
+                    <a href="https://www.buymeacoffee.com/nyana" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a>.
                 </p>
                 <p>
-                    <strong>Integrations:</strong>
-                    <a href="https://urlscan.io/" target="_blank">urlscan.io</a> |
-                    <a href="https://nextdns.io/" target="_blank">NextDNS</a> |
-                    <a href="https://www.virustotal.com/" target="_blank">VirusTotal</a> |
-                    <a href="https://www.abuseipdb.com/" target="_blank">AbuseIPDB</a>
+                    Integrations:
+                    <a href="https://urlscan.io/" target="_blank" rel="noopener noreferrer">urlscan.io</a> ·
+                    <a href="https://nextdns.io/" target="_blank" rel="noopener noreferrer">NextDNS</a> ·
+                    <a href="https://www.virustotal.com/" target="_blank" rel="noopener noreferrer">VirusTotal</a> ·
+                    <a href="https://www.abuseipdb.com/" target="_blank" rel="noopener noreferrer">AbuseIPDB</a>
                 </p>
-                <p style="margin-top: 12px; font-size: 13px; color: #9ca3af;">
-                    Version 1.4.2 | All API keys stored locally and securely in Firefox.
-                </p>
-            </div>
-        </div>
+                <p class="muted small">Version 1.6.0. All API keys are stored locally in Firefox.</p>
+            </footer>
+        </main>
 
+        <script src="busy.js"></script>
         <script src="options.js"></script>
     </body>
 </html>

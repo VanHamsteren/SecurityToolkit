@@ -3,8 +3,8 @@
     "name": "Security Toolkit",
     "short_name": "securitytoolkit",
     "author": "Paul Rutten",
-    "version": "1.4.2",
-    "description": "Right-click hyperlinks to analyse them with urlscan.io or VirusTotal. After that, you can send the domain name to NextDNS to block or to allow.",
+    "version": "1.6.0",
+    "description": "Right-click a link to analyse it with the built-in Quick Scan, urlscan.io, VirusTotal and AbuseIPDB in one results page. Then block the domains in NextDNS.",
     "permissions": [
         "contextMenus",
         "activeTab",
@@ -18,19 +18,29 @@
         "https://www.virustotal.com/*",
         "https://api.abuseipdb.com/*"
     ],
+    "optional_permissions": [
+        "webRequest",
+        "webRequestBlocking"
+    ],
+    "optional_host_permissions": [
+        "<all_urls>"
+    ],
     "icons": {
-        "16": "icons/urlscan_16.png",
-        "32": "icons/urlscan_32.png",
-        "128": "icons/urlscan_128.png"
+        "16": "icons/icon_16.png",
+        "32": "icons/icon_32.png",
+        "48": "icons/icon_48.png",
+        "96": "icons/icon_96.png",
+        "128": "icons/icon_128.png"
     },
     "action": {
         "default_popup": "popup.html",
         "default_icon": {
-            "16": "icons/urlscan_16.png",
-            "32": "icons/urlscan_32.png",
-            "128": "icons/urlscan_128.png"
+            "16": "icons/icon_16.png",
+            "32": "icons/icon_32.png",
+            "48": "icons/icon_48.png",
+            "96": "icons/icon_96.png"
         },
-        "default_title": "Security Tools"
+        "default_title": "Security Toolkit"
     },
     "options_ui": {
         "page": "options.html",
@@ -38,6 +48,7 @@
     },
     "background": {
         "scripts": [
+            "quickscan.js",
             "background.js"
         ]
     },

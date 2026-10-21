@@ -1,0 +1,471 @@
+/* Security Toolkit - analysis page (builds on brand.css) */
+
+main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: var(--space-5) var(--space-4) 72px;
+}
+
+.region + .region {
+    margin-top: var(--space-5);
+}
+
+.target-block {
+    margin-bottom: var(--space-2);
+}
+
+.target {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    word-break: break-all;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    padding: var(--space-3) var(--space-4);
+    margin-top: var(--space-2);
+}
+
+.sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-top: var(--space-2);
+}
+
+/* ---- Overall assessment ------------------------------------------------ */
+
+.overall h2 {
+    font-size: 30px;
+    margin: 6px 0 var(--space-3);
+}
+
+.meter {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--border);
+    overflow: hidden;
+    margin-bottom: var(--space-4);
+}
+
+.meter > div {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.35s ease;
+}
+
+.sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.caveat {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+/* ---- Workflow stepper -------------------------------------------------- */
+
+.stepper {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-3);
+}
+
+.stepper li {
+    min-width: 0;
+}
+
+.stepper a {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    height: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-control);
+    color: var(--text);
+    text-decoration: none;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.stepper a:hover {
+    border-color: var(--accent);
+}
+
+.stepper .num-badge {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-weight: 700;
+    font-size: 13px;
+    background: var(--info-soft);
+    color: var(--muted);
+}
+
+.stepper .step-title {
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1.3;
+}
+
+.stepper .step-state {
+    font-size: 12.5px;
+    color: var(--muted);
+}
+
+.stepper li.is-done .num-badge {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+.stepper li.is-current a {
+    border-color: var(--accent);
+    background: var(--soft);
+}
+
+.stepper li.is-current .num-badge {
+    background: var(--accent);
+    color: var(--on-accent);
+}
+
+.stepper li.is-running .num-badge {
+    background: transparent;
+    border: 2px solid var(--accent);
+}
+
+.next-hint {
+    margin-top: var(--space-3);
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    font-size: 14.5px;
+}
+
+.next-hint strong {
+    color: var(--accent);
+}
+
+@media (max-width: 760px) {
+    .stepper {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 440px) {
+    .stepper {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ---- Sections ---------------------------------------------------------- */
+
+.section-head {
+    margin-bottom: var(--space-3);
+}
+
+.section-head h2 {
+    font-size: 24px;
+    margin-top: 2px;
+}
+
+.section-head p {
+    color: var(--muted);
+    margin-top: 4px;
+    max-width: 70ch;
+}
+
+.stack > * + * {
+    margin-top: var(--space-4);
+}
+
+.row {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* ---- Tool cards -------------------------------------------------------- */
+
+.tool-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-4);
+}
+
+.tool-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    scroll-margin-top: 24px;
+}
+
+.tool-card.is-focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.tool-card header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.tool-card h3 {
+    font-size: 17px;
+}
+
+.tool-card .headline {
+    font-weight: 700;
+    font-size: 15px;
+}
+
+.tool-card .body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    font-size: 14px;
+}
+
+.tool-card .desc {
+    color: var(--muted);
+}
+
+.tool-card .working {
+    display: flex;
+    gap: var(--space-2);
+    align-items: center;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.tool-card .err {
+    color: var(--error);
+    font-weight: 600;
+}
+
+.tool-card .hint {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.tool-card dl.kv {
+    font-size: 13px;
+    grid-template-columns: minmax(90px, 130px) 1fr;
+}
+
+.tool-card dd {
+    white-space: pre-line;
+}
+
+.tool-card .shot {
+    width: 100%;
+    max-height: 180px;
+    object-fit: cover;
+    object-position: top;
+    border-radius: var(--radius-control);
+    border: 1px solid var(--border);
+}
+
+.tool-card footer {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.link-list {
+    list-style: none;
+    display: grid;
+    gap: 2px;
+    font-size: 14px;
+}
+
+.link-list a {
+    display: block;
+    padding: 6px 0;
+    font-weight: 600;
+}
+
+/* ---- Existing analysis parts ------------------------------------------ */
+
+.panel + .panel {
+    margin-top: var(--space-4);
+}
+
+.panel h3 {
+    font-size: 17px;
+    margin-bottom: var(--space-3);
+}
+
+.signal {
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    gap: var(--space-3);
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+}
+
+.signal:first-of-type {
+    border-top: none;
+    padding-top: 0;
+}
+
+.signal .t {
+    font-weight: 600;
+}
+
+.signal .d {
+    color: var(--muted);
+    font-size: 13.5px;
+    word-break: break-word;
+}
+
+.tablewrap {
+    overflow-x: auto;
+}
+
+@media (max-width: 640px) {
+    .tablewrap table {
+        min-width: 620px;
+    }
+    dl.kv {
+        grid-template-columns: 1fr;
+    }
+    dl.kv dt {
+        margin-top: 6px;
+    }
+}
+
+.page-block + .page-block {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px dashed var(--border);
+}
+
+details > summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 14px;
+    margin-top: var(--space-2);
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+}
+
+details.fold {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: var(--space-3) var(--space-5);
+}
+
+details.fold > summary {
+    margin-top: 0;
+    font-family: var(--font-head);
+    font-size: 17px;
+    color: var(--text);
+}
+
+details.fold[open] > summary {
+    margin-bottom: var(--space-3);
+}
+
+.status-line {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: 13.5px;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.toast {
+    font-size: 13.5px;
+    margin-top: var(--space-2);
+    min-height: 1.2em;
+}
+
+.cand {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    padding: 6px 0;
+}
+
+.cand label {
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    cursor: pointer;
+}
+
+.cand .why {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-family: var(--font-body);
+    display: block;
+}
+
+.empty {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+.history a.item {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    text-decoration: none;
+    color: var(--text);
+}
+
+.history a.item:hover .mono {
+    color: var(--accent);
+}
+
+/* ---- Queue page -------------------------------------------------------- */
+
+.progress {
+    height: 10px;
+    background: var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.progress > div {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 5px;
+    transition: width 0.35s ease;
+}
+
+.queue-table td.url {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    word-break: break-all;
+    max-width: 380px;
+}
+
+.queue-table td .row {
+    gap: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .meter > div,
+    .progress > div,
+    .stepper a {
+        transition: none;
+    }
+}

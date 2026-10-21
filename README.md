@@ -6,6 +6,10 @@ Built for triaging spam, scam, and phishing links (e.g. from the junk folder in 
 
 ## Features
 
+- 🧭 **One results page per link** (new in 1.6): right-click > Security Analysis > *Analyse link (all tools)* opens a single page with a four-step flow (Analyse, Check reputation, Look deeper, Decide and block). urlscan.io, VirusTotal, AbuseIPDB and domain age each get a card that fills in live, and one overall assessment combines them
+- ⏳ **Clear progress feedback**: buttons show a spinner and lock while an API call runs, a progress bar runs along the top of the page, and the toolbar button shows a badge while a job starts, so repeated clicking is no longer needed
+- 🎨 **House style**: the whole extension follows the paulrutten.nl style book (Rice Terrace palette, Plus Jakarta Sans and Merriweather, light and dark mode, logo usage). Fonts are bundled, nothing is loaded from third parties
+- ⚡ **Quick Scan (built-in)**: The extension's own link analysis with a full report page: redirect chain, cloaking detection, phishing-kit indicators, infrastructure lookups and one-click NextDNS blocking. No account or API key needed
 - 🔒 **URLScan.io Integration**: Comprehensive website security scanning, with a batch scan queue
 - 🧪 **VirusTotal Integration**: URL analysis with 70+ antivirus engines and blocklist services
 - 🛰️ **AbuseIPDB Integration**: IP reputation checks with automatic domain→IP resolution
@@ -18,6 +22,29 @@ Built for triaging spam, scam, and phishing links (e.g. from the junk folder in 
 - 🔐 **Secure Storage**: API keys stored locally in Firefox's secure storage
 
 ## Current Integrations
+
+### ⚡ Quick Scan (built-in, no API key)
+Runs inside the extension and opens a report page. Two stages:
+
+**1. Offline analysis** (never contacts the target server)
+- Unwraps Microsoft Safe Links, Proofpoint URL Defense, Barracuda, Google and Facebook redirect wrappers; re-fangs defanged input (`hxxp`, `[.]`)
+- Decodes base64 path/query segments, detects recipient tracking IDs and e-mail addresses in the link (personalised links)
+- Flags IP-address hosts, punycode, `user@host` tricks, high-abuse TLDs, brand names in look-alike domains, free hosting platforms and URL shorteners
+- DNS (A/CNAME/NS) via Google DNS-over-HTTPS, network/ASN via Team Cymru (over DNS), domain age and registrar via RDAP
+
+**2. Live fetch** (on request, or automatic if enabled)
+- Fetches the URL from your own connection, so it sees what a real (Dutch) victim sees, which helps against scanner cloaking
+- Cookies, `Origin`, `Referer` and `Authorization` are stripped; the request is shaped like a normal top-level navigation
+- Records every redirect hop (status, server IP, TLS issuer and certificate age via Firefox's `getSecurityInfo`), then follows meta-refresh / `Refresh` header / literal JavaScript redirects (max 5)
+- Reads the response as **text only**: it is parsed with an inert `DOMParser`, nothing is rendered and no script runs. Max 2 MB, 15 s timeout
+- Page indicators: password and card fields, MFA-code fields, brand impersonation (login form claiming Microsoft/ING/PostNL/... on a foreign domain), cloned Microsoft sign-in assets (AiTM kits), forms posting to other domains, exfiltration to Telegram bots / Discord webhooks / form services, visitor IP-geolocation lookups, CAPTCHA gates, anti-analysis tricks, obfuscated JavaScript, HTML smuggling and file downloads (with SHA-256 for a VirusTotal lookup)
+- Chain indicators: cloaking (unknown domain forwarding to a well-known harmless site), HTTPS→HTTP downgrades, number of hops and domains, refused first requests
+
+**Report page**
+- Heuristic score (0-100) with every signal explained, redirect chain table, infrastructure table, link dissection and per-page analysis
+- Block candidates (only the attacker's domains, never the decoy or brand domains) → NextDNS denylist in one click
+- Second opinion: send the unwrapped URL to urlscan.io / VirusTotal, or pivot to urlscan history, VT and Talos
+- Export as Markdown (defanged URLs, ready for a ticket or abuse report) or JSON; the last 25 reports are kept under *Recent Quick Scans* in the toolbar popup
 
 ### 1. URLScan.io
 - Detailed website security analysis with screenshots and HTTP request inspection
@@ -100,6 +127,7 @@ Right-click any link (or selected text) → **Security Analysis**:
 - **AbuseIPDB** → Check IP Reputation
 - **NextDNS** → Add to Blocklist / Allowlist (per profile or all)
 - **Domain Age (RDAP)** → registration date and age notification
+- **⚡ Quick Scan** → own analysis in a report page (offline first, live fetch on request)
 - **Lookup on…** → open the domain on an external analysis site
 
 ## Technical Details
@@ -117,6 +145,7 @@ Right-click any link (or selected text) → **Security Analysis**:
 - `https://api.nextdns.io/*`: NextDNS API
 - `https://www.virustotal.com/*`: VirusTotal API (granted on first use)
 - `https://api.abuseipdb.com/*`: AbuseIPDB API (granted on first use)
+- Optional, for the Quick Scan live fetch only (requested on first use or via Settings): `<all_urls>` to fetch the link, `webRequest` + `webRequestBlocking` to record redirect hops, read TLS info and strip cookies/Origin from that one request. Listeners are attached only while a live fetch runs
 
 Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons in settings request the permission with a one-time prompt. RDAP (rdap.org) and DNS-over-HTTPS (dns.google) need no host permission because those services support cross-origin requests.
 
@@ -142,6 +171,7 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 - **No Third-Party Sharing**: API keys are only ever sent to their own service (urlscan.io key to urlscan.io, etc.)
 - **User Control**: You control URLScan visibility (public/unlisted/private) and notification level
 - **Domain lookups**: RDAP and DNS-over-HTTPS lookups only transmit the domain being checked
+- **Quick Scan**: reports are stored only in local extension storage (last 25). The live fetch runs only on your request (or when you enable automatic mode), sends no cookies, and is never shared with third parties; ASN lookups send the server IP to Team Cymru via Google DNS
 - **Open Source**: All code is available for inspection
 
 ## Development
@@ -159,10 +189,22 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 3. Right-click links and test each integration
 4. Verify notifications respect the configured notification level
 5. Confirm results pages open automatically
+6. Quick Scan: right-click a junk-mail link → ⚡ Quick Scan, check the offline report, then **Fetch live** and verify the redirect chain and signals
 
 ## Changelog
 
-### Version 1.4.2 (Current)
+### Version 1.6.0 (Current)
+- 🧭 New unified results page: one page per scan with a four-step stepper, a card per tool (urlscan.io, VirusTotal, AbuseIPDB, domain age, more lookups), one combined assessment and a single block panel
+- 📋 Scan queue now has its own page with progress, a verdict per link and block suggestions for flagged domains; *Process queue* in the popup and menu opens it
+- ⏳ Busy states on every action that waits for an API (spinner, locked button, top progress bar, screen-reader announcement, repeat clicks ignored), plus a toolbar badge and a guard against double menu clicks
+- 🎨 Restyled results, settings and popup to the paulrutten.nl style book (logo, colours, fonts, dark mode, 44 px targets, focus rings, reduced-motion support)
+- 🧹 Settings page: sectioned layout, queue management moved to the queue page, no `innerHTML`
+### Version 1.5.0
+- ⚡ New built-in **Quick Scan**: offline link dissection plus DNS/ASN/RDAP enrichment, optional live fetch with full redirect chain capture, static phishing-kit analysis, cloaking detection and a report page with NextDNS blocking and Markdown/JSON export
+- 🔐 New optional permissions (`<all_urls>`, `webRequest`, `webRequestBlocking`), only requested when the live fetch is used
+- 🧭 Toolbar popup: *Recent Quick Scans*
+
+### Version 1.4.2
 - 🦊 New permanent add-on ID (firefox@paulrutten.nl) ahead of AMO submission
 - 🔒 Removed remote Google Fonts stylesheet from options page (AMO policy; falls back to system fonts)
 
