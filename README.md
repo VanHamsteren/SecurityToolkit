@@ -193,7 +193,13 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.6.0 (Current)
+### Version 1.6.1 (Current)
+- 🐛 Results page no longer says "NextDNS is not set up" when it is: the profile list is now loaded on demand
+- 🐛 Long URLs in the recent analyses list wrap inside their card
+- 🐛 Test results on the settings page appear under the button you pressed
+- 🐛 Popup no longer shows a scan that is not running; interrupted links go back to waiting
+
+### Version 1.6.0
 - 🧭 New unified results page: one page per scan with a four-step stepper, a card per tool (urlscan.io, VirusTotal, AbuseIPDB, domain age, more lookups), one combined assessment and a single block panel
 - 📋 Scan queue now has its own page with progress, a verdict per link and block suggestions for flagged domains; *Process queue* in the popup and menu opens it
 - ⏳ Busy states on every action that waits for an API (spinner, locked button, top progress bar, screen-reader announcement, repeat clicks ignored), plus a toolbar badge and a guard against double menu clicks

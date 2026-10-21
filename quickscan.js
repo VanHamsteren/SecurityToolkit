@@ -1310,13 +1310,28 @@ if (typeof browser !== "undefined" && browser.runtime?.onMessage) {
                 sendToVirusTotal(msg.url);
                 return Promise.resolve({ ok: true });
             case "qsNextDnsProfiles":
-                return Promise.resolve({ profiles: (typeof nextDnsProfiles !== "undefined" ? nextDnsProfiles : []).map((p) => ({ id: p.id, name: p.name || p.id })) });
+                return qsEnsureProfiles().then((list) => ({ profiles: list.map((p) => ({ id: p.id, name: p.name || p.id })) }));
             case "qsNextDnsBlock":
-                return qsBlockDomains(msg.domains || [], msg.profileId);
+                return qsEnsureProfiles().then(() => qsBlockDomains(msg.domains || [], msg.profileId));
             default:
                 return undefined;
         }
     });
+}
+
+/**
+ * The profile list is normally filled when the context menu is built, which can lag behind
+ * (startup, key just saved, first click). Load it on demand so the report page never sees an empty list.
+ */
+async function qsEnsureProfiles() {
+    if (typeof nextDnsProfiles !== "undefined" && nextDnsProfiles.length) return nextDnsProfiles;
+    try {
+        const fresh = await fetchNextDnsProfiles();
+        if (fresh.length) nextDnsProfiles = fresh;
+    } catch (e) {
+        console.error("Could not load NextDNS profiles:", e);
+    }
+    return typeof nextDnsProfiles !== "undefined" ? nextDnsProfiles : [];
 }
 
 async function qsBlockDomains(domains, profileId) {

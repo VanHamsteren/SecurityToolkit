@@ -24,9 +24,13 @@ async function loadQueueStats() {
         const response = await browser.runtime.sendMessage({ action: "getUrlScanQueue" });
         if (!response?.success) return;
         const queue = response.queue;
-        const pending = queue.filter((i) => i.status === "pending").length;
+        const pendingReal = queue.filter((i) => i.status === "pending").length;
         const completed = queue.filter((i) => i.status === "completed").length;
-        const scanning = queue.filter((i) => i.status === "scanning").length;
+        const { urlscanHeartbeat = 0 } = await browser.storage.local.get("urlscanHeartbeat");
+        const live = Date.now() - urlscanHeartbeat < 15000; // the queue page is really scanning
+        const stale = queue.filter((i) => i.status === "scanning").length;
+        const scanning = live ? stale : 0;
+        const pending = pendingReal + (live ? 0 : stale); // interrupted links count as waiting
 
         totalCount.textContent = queue.length;
         pendingCount.textContent = pending;

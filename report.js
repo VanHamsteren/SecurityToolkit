@@ -516,11 +516,11 @@ async function loadProfiles() {
     if (profiles) return profiles;
     try {
         const res = await browser.runtime.sendMessage({ action: "qsNextDnsProfiles" });
-        profiles = res?.profiles || [];
+        profiles = res?.profiles?.length ? res.profiles : null; // an empty answer is not cached, so the next panel retries
     } catch {
-        profiles = [];
+        profiles = null;
     }
-    return profiles;
+    return profiles || [];
 }
 
 /** Shared by the single-link page and the queue page */
@@ -770,6 +770,18 @@ const queueState = { items: [], running: false, progress: null, cands: null, mes
 async function loadQueue() {
     const { urlscanQueue = [] } = await browser.storage.local.get("urlscanQueue");
     queueState.items = urlscanQueue;
+    // Nothing is running here, so a link still marked "scanning" was interrupted: put it back in line
+    if (!queueState.running) {
+        let changed = false;
+        for (const it of queueState.items) {
+            if (it.status === "scanning") {
+                it.status = "pending";
+                it.error = null;
+                changed = true;
+            }
+        }
+        if (changed) await saveQueue();
+    }
 }
 
 function saveQueue() {
@@ -885,6 +897,10 @@ async function startQueueRun() {
     const pending = queueState.items.filter((i) => i.status === "pending");
     queueState.progress = { total: pending.length, submitted: 0, finished: 0 };
     Busy.begin("Scanning the queue");
+    // The popup uses this heartbeat to tell a running scan from an interrupted one
+    const beat = () => browser.storage.local.set({ urlscanHeartbeat: Date.now() });
+    beat();
+    const heartbeat = setInterval(beat, 5000);
     drawQueue();
 
     const waiting = [];
@@ -950,6 +966,8 @@ async function startQueueRun() {
     await saveQueue();
 
     queueState.running = false;
+    clearInterval(heartbeat);
+    await browser.storage.local.remove("urlscanHeartbeat");
     Busy.end("Queue finished");
     try {
         const res = await browser.runtime.sendMessage({

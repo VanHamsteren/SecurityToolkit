@@ -431,6 +431,21 @@ details.fold[open] > summary {
     color: var(--text);
 }
 
+.history a.item .mono {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+}
+
+.history a.item .num {
+    flex: none;
+}
+
+.mono {
+    overflow-wrap: anywhere;
+}
+
 .history a.item:hover .mono {
     color: var(--accent);
 }

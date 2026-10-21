@@ -152,7 +152,8 @@ input.error {
     background: linear-gradient(to top, var(--bg) 70%, transparent);
 }
 
-#status {
+#status,
+.inline-status {
     display: none;
     margin-top: var(--space-3);
     padding: var(--space-3) var(--space-4);
@@ -161,17 +162,20 @@ input.error {
     border: 1px solid var(--border);
 }
 
-#status.show {
+#status.show,
+.inline-status.show {
     display: block;
 }
 
-#status.success {
+#status.success,
+.inline-status.success {
     background: var(--ok-soft);
     color: var(--ok);
     border-color: var(--ok);
 }
 
-#status.error {
+#status.error,
+.inline-status.error {
     background: var(--error-soft);
     color: var(--error);
     border-color: var(--error);

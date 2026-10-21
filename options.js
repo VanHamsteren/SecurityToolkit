@@ -45,13 +45,28 @@ function validateApiKey(apiKey) {
     return apiKey.trim().length >= 20;
 }
 
-function showStatus(message, isSuccess) {
-    statusDiv.textContent = message;
-    statusDiv.className = isSuccess ? "show success" : "show error";
-    statusDiv.setAttribute("data-testid", isSuccess ? "status-success" : "status-error");
-    statusDiv.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    clearTimeout(statusTimer);
-    statusTimer = setTimeout(() => statusDiv.classList.remove("show"), 8000);
+/**
+ * Show a message. With an anchor (a button) the message appears right below that button,
+ * inside the section it belongs to; without one it appears next to the Save button.
+ */
+function showStatus(message, isSuccess, anchor) {
+    let target = statusDiv;
+    if (anchor) {
+        target = anchor.nextElementSibling?.classList.contains("inline-status") ? anchor.nextElementSibling : null;
+        if (!target) {
+            target = document.createElement("div");
+            target.className = "inline-status";
+            target.setAttribute("role", "status");
+            anchor.after(target);
+        }
+    }
+    target.textContent = message;
+    target.className = `${anchor ? "inline-status " : ""}show ${isSuccess ? "success" : "error"}`;
+    if (!anchor) {
+        statusDiv.setAttribute("data-testid", isSuccess ? "status-success" : "status-error");
+        clearTimeout(statusTimer);
+        statusTimer = setTimeout(() => statusDiv.classList.remove("show"), 8000);
+    }
 }
 
 function showFieldError(input, errorElement, show) {
@@ -106,7 +121,7 @@ function wireTest(button, input, action, serviceName, origin) {
     button.addEventListener("click", async () => {
         if (button.getAttribute("aria-busy") === "true") return;
         if (!input.value.trim()) {
-            showStatus(`Please enter a ${serviceName} API key first.`, false);
+            showStatus(`Please enter a ${serviceName} API key first.`, false, button);
             input.focus();
             return;
         }
@@ -114,7 +129,7 @@ function wireTest(button, input, action, serviceName, origin) {
             try {
                 const granted = await browser.permissions.request({ origins: [origin] });
                 if (!granted) {
-                    showStatus(`${serviceName} needs permission to be contacted. Choose Allow in the prompt, or grant it under about:addons > Security Toolkit > Permissions.`, false);
+                    showStatus(`${serviceName} needs permission to be contacted. Choose Allow in the prompt, or grant it under about:addons > Security Toolkit > Permissions.`, false, button);
                     return;
                 }
             } catch (error) {
@@ -125,25 +140,25 @@ function wireTest(button, input, action, serviceName, origin) {
             try {
                 const response = await browser.runtime.sendMessage({ action, apiKey: input.value.trim() });
                 if (!response) {
-                    showStatus("No response from the extension background. Reload the extension in about:debugging and try again.", false);
+                    showStatus("No response from the extension background. Reload the extension in about:debugging and try again.", false, button);
                     return;
                 }
                 if (response.success) {
                     if (response.profiles) {
                         if (response.profiles.length) {
                             renderProfiles(response.profiles);
-                            showStatus(`${serviceName} connection works. Found ${response.profiles.length} profile(s): ${response.profiles.map((p) => p.name || p.id).join(", ")}`, true);
+                            showStatus(`${serviceName} connection works. Found ${response.profiles.length} profile(s): ${response.profiles.map((p) => p.name || p.id).join(", ")}`, true, button);
                         } else {
-                            showStatus("Connection works but no profiles were found. Create a profile at nextdns.io.", false);
+                            showStatus("Connection works but no profiles were found. Create a profile at nextdns.io.", false, button);
                         }
                     } else {
-                        showStatus(`${serviceName} connection works.${response.quotaInfo ? ` (${response.quotaInfo})` : ""}`, true);
+                        showStatus(`${serviceName} connection works.${response.quotaInfo ? ` (${response.quotaInfo})` : ""}`, true, button);
                     }
                 } else {
-                    showStatus(`${serviceName} connection failed: ${response.error}. Check your API key.`, false);
+                    showStatus(`${serviceName} connection failed: ${response.error}. Check your API key.`, false, button);
                 }
             } catch (error) {
-                showStatus(`Error: ${error.message}`, false);
+                showStatus(`Error: ${error.message}`, false, button);
                 console.error(`${serviceName} connection error:`, error);
             }
         });
@@ -237,7 +252,7 @@ async function updateQsPermState() {
 qsGrantBtn.addEventListener("click", async () => {
     try {
         const granted = await browser.permissions.request(QS_LIVE_PERMISSIONS); // first await: keeps the user gesture
-        if (!granted) showStatus("Live fetch stays disabled. The offline Quick Scan still works.", false);
+        if (!granted) showStatus("Live fetch stays disabled. The offline Quick Scan still works.", false, qsGrantBtn);
     } catch (error) {
         console.error("Permission request failed:", error);
     }
