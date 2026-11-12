@@ -193,7 +193,7 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.7.0 (Current)
+### Version 1.7.7 (Current)
 - 🌳 urlscan.io card now shows the **full domain chain**: every domain the page redirected through or loaded, as a tree under the host that led to it
 - 🛡️ Step 4 offers those chain domains for NextDNS blocking (popular sites and shared platforms are still never suggested; ticked when urlscan.io flags the scan)
 
