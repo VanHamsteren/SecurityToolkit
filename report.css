@@ -484,3 +484,30 @@ details.fold[open] > summary {
         transition: none;
     }
 }
+
+.chain-tree,
+.chain-tree ul {
+    list-style: none;
+    margin: 4px 0 0;
+    padding-left: 16px;
+    border-left: 1px solid var(--border, currentColor);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+.chain-tree {
+    padding-left: 0;
+    border-left: 0;
+}
+
+.chain-tree li {
+    margin: 4px 0;
+}
+
+.chain-tree .tag {
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    font-size: 11px;
+}

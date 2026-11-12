@@ -1151,6 +1151,17 @@ function qsBlockCandidatesForLinks(links) {
 // Orchestration
 // ---------------------------------------------------------------------------
 
+/** Block suggestions for the domain tree urlscan.io recorded (see ckUrlscanChain) */
+function qsBlockCandidatesForChain(chain, flagged) {
+    const domains = (chain || []).map((n) => String(n.domain || "").toLowerCase()).filter(Boolean);
+    if (!domains.length) return [];
+    const fake = {
+        url: { host: domains[0] }, verdict: { score: flagged ? 50 : 0 },
+        live: { hops: domains.slice(1).map((d) => ({ url: `https://${d}/` })), pages: [] },
+    };
+    return qsBlockCandidates(fake).map((c) => ({ ...c, reasons: ["urlscan.io domain chain"] }));
+}
+
 /** Create a report, open it, and run the offline stage */
 async function qsStart(input, options = {}) {
     let normalized;
@@ -1303,6 +1314,8 @@ if (typeof browser !== "undefined" && browser.runtime?.onMessage) {
                 return qsStart(msg.url, { run: msg.run, focus: msg.focus }).then((id) => ({ ok: !!id, id }));
             case "qsBlockCandidatesFor":
                 return Promise.resolve({ candidates: qsBlockCandidatesForLinks(msg.links) });
+            case "qsBlockCandidatesForChain":
+                return Promise.resolve({ candidates: qsBlockCandidatesForChain(msg.chain, msg.flagged) });
             case "qsUrlscan":
                 sendToUrlscan(msg.url);
                 return Promise.resolve({ ok: true });

@@ -320,6 +320,27 @@ function resultBody(st) {
     return nodes;
 }
 
+/** Nested list of the domain tree urlscan.io recorded */
+function chainTree(chain) {
+    const kids = new Map();
+    for (const n of chain) {
+        if (!kids.has(n.parent)) kids.set(n.parent, []);
+        kids.get(n.parent).push(n);
+    }
+    const branch = (n) => {
+        const children = kids.get(n.domain) || [];
+        return el("li", {},
+            el("span", { class: "node-domain" }, n.domain),
+            n.via === "redirect" ? el("span", { class: "tag" }, "redirect") : null,
+            n.count > 1 ? el("span", { class: "muted" }, ` ${n.count} requests`) : null,
+            children.length ? el("ul", {}, children.map(branch)) : null);
+    };
+    const roots = chain.filter((n) => !n.parent);
+    return el("details", { class: "fold chain" },
+        el("summary", {}, `Domain chain (${chain.length})`),
+        el("ul", { class: "chain-tree" }, roots.map(branch)));
+}
+
 function toolCard(r, tool, isCurrentStep) {
     const st = toolState[tool];
     const configured = ckIsConfigured(cfg, tool);
@@ -342,6 +363,7 @@ function toolCard(r, tool, isCurrentStep) {
         chip = el("span", { class: `chip chip-${st.level}` }, LEVEL_TEXT[st.level]);
         body = [
             ...resultBody(st),
+            st.chain?.length ? chainTree(st.chain) : null,
             st.screenshot ? el("img", {
                 class: "shot", src: st.screenshot, alt: "Screenshot of the page as urlscan.io saw it", loading: "lazy",
                 referrerpolicy: "no-referrer", onerror: (e) => e.target.remove(),
@@ -570,13 +592,36 @@ async function blockSelected(select, msg) {
     }
 }
 
+// Domains from the urlscan.io chain, filtered in the background script (it holds the popular-site and platform lists)
+const chainCands = { key: "", list: [] };
+
+async function loadChainCands() {
+    const st = toolState.urlscan;
+    const chain = st?.status === "done" ? st.chain : null;
+    const key = chain?.length ? `${st.finishedAt}:${chain.length}` : "";
+    if (key === chainCands.key) return;
+    chainCands.key = key;
+    chainCands.list = [];
+    if (!key) return;
+    try {
+        const res = await browser.runtime.sendMessage({
+            action: "qsBlockCandidatesForChain", chain, flagged: st.level === "high" || st.level === "medium",
+        });
+        if (chainCands.key === key) chainCands.list = res?.candidates || [];
+    } catch {
+        /* the block panel simply shows no chain suggestions */
+    }
+    if (chainCands.key === key && chainCands.list.length) setRegion("step4", renderStep4(current));
+}
+
 function renderStep4(r) {
     const m = stepModel(r);
     const o = ckOverall(r, toolState);
     // keep what the user already ticked when the panel is redrawn
     const touched = new Map([...region("step4").querySelectorAll(".cand input")].map((c) => [c.value, c.checked]));
     const flagged = o.level === "medium" || o.level === "high";
-    const cands = (r.blockCandidates || []).map((c) => ({
+    const fromChain = chainCands.list.filter((c) => !(r.blockCandidates || []).some((b) => b.domain === c.domain));
+    const cands = [...(r.blockCandidates || []), ...fromChain].map((c) => ({
         ...c,
         checked: touched.has(c.domain) ? touched.get(c.domain) : (c.checked || (flagged && c.reasons.includes("link in the message"))),
         reasons: flagged && !c.reasons.includes("flagged by the checks") && c.reasons.includes("link in the message") && o.flagged
@@ -656,7 +701,9 @@ async function runAll() {
 }
 
 function renderStep4Region() {
-    if (current) setRegion("step4", renderStep4(current));
+    if (!current) return;
+    setRegion("step4", renderStep4(current));
+    loadChainCands();
 }
 
 async function maybeAutoRun(r) {

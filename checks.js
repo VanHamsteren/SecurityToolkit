@@ -114,6 +114,44 @@ function ckDone(tool, level, headline, details, extra = {}) {
 // urlscan.io
 // ---------------------------------------------------------------------------
 
+/**
+ * Every domain urlscan.io saw while loading the page, as a tree: the first host is the root,
+ * each other host hangs under the host that redirected to it or loaded it.
+ */
+function ckUrlscanChain(data) {
+    const hostOf = (u) => {
+        try {
+            return new URL(u).hostname.toLowerCase();
+        } catch {
+            return "";
+        }
+    };
+    const nodes = new Map();
+    let root = "";
+    for (const entry of data?.data?.requests || []) {
+        const rq = entry?.request || {};
+        const host = hostOf(rq.request?.url);
+        if (!host) continue;
+        const seen = nodes.get(host);
+        if (seen) {
+            seen.count++;
+            continue;
+        }
+        if (nodes.size >= 150) continue;
+        if (!root) root = host;
+        const redirected = Boolean(rq.redirectResponse?.url);
+        let parent = hostOf(redirected ? rq.redirectResponse.url : (rq.initiator?.url || rq.documentURL));
+        // a parent must already be in the tree, which also rules out loops
+        if (host === root) parent = "";
+        else if (!parent || parent === host || !nodes.has(parent)) parent = root;
+        nodes.set(host, {
+            domain: host, parent, via: redirected ? "redirect" : "load", count: 1,
+            ip: entry?.response?.response?.remoteIPAddress || entry?.response?.asn?.ip || "",
+        });
+    }
+    return [...nodes.values()];
+}
+
 function ckParseUrlscan(uuid, data) {
     const overall = data?.verdicts?.overall || {};
     const us = data?.verdicts?.urlscan || {};
@@ -137,6 +175,7 @@ function ckParseUrlscan(uuid, data) {
         headline = "No malicious verdict";
     }
     const requests = data?.lists?.urls?.length;
+    const chain = ckUrlscanChain(data);
     return ckDone("urlscan", level, headline, [
         ["Final URL", page.url],
         ["Server IP", page.ip],
@@ -147,7 +186,9 @@ function ckParseUrlscan(uuid, data) {
         ["Impersonated brands", brands.join(", ")],
         ["Categories", categories.join(", ")],
         ["Requests made", requests],
+        ["Domains contacted", chain.length || ""],
     ], {
+        chain,
         link: { href: `https://urlscan.io/result/${uuid}/`, label: "Open the urlscan.io report" },
         screenshot: `https://urlscan.io/screenshots/${uuid}.png`,
     });
