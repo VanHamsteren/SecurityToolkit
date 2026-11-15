@@ -864,14 +864,22 @@ async function renderHistory() {
 }
 
 // ---------------------------------------------------------------------------
-// Scan queue page (urlscan.io batch)
+// Scan queue page
 // ---------------------------------------------------------------------------
+
+// Two queues share this page: the toolkit's own (?queue=1, the tools you tick)
+// and a separate one that only sends links to urlscan.io (?queue=urlscan)
+const URLSCAN_ONLY = params.get("queue") === "urlscan";
+const QUEUE_KEY = URLSCAN_ONLY ? "urlscanOnlyQueue" : "urlscanQueue";
+const HEARTBEAT_KEY = URLSCAN_ONLY ? "urlscanOnlyHeartbeat" : "urlscanHeartbeat";
+const QUEUE_ADD_HINT = URLSCAN_ONLY
+    ? "Right-click a link or selected text and choose Security Analysis > URLScan.io > Add to urlscan.io queue."
+    : "Right-click a link or selected text and choose Security Analysis > Add to queue.";
 
 const queueState = { items: [], running: false, progress: null, cands: null, message: "", note: "", runId: 0, earlierOpen: false };
 
 async function loadQueue() {
-    const { urlscanQueue = [] } = await browser.storage.local.get("urlscanQueue");
-    queueState.items = urlscanQueue;
+    queueState.items = (await browser.storage.local.get(QUEUE_KEY))[QUEUE_KEY] || [];
     // Nothing is running here, so a link still marked "scanning" was interrupted: put it back in line
     if (!queueState.running) {
         let changed = false;
@@ -893,11 +901,11 @@ async function loadQueue() {
  */
 async function saveQueue({ replace = false } = {}) {
     if (!replace) {
-        const { urlscanQueue: stored = [] } = await browser.storage.local.get("urlscanQueue");
+        const stored = (await browser.storage.local.get(QUEUE_KEY))[QUEUE_KEY] || [];
         const known = new Set(queueState.items.map((i) => i.url));
         queueState.items.push(...stored.filter((i) => !known.has(i.url)));
     }
-    await browser.storage.local.set({ urlscanQueue: queueState.items });
+    await browser.storage.local.set({ [QUEUE_KEY]: queueState.items });
 }
 
 const BATCH_SIZE = 20;
@@ -956,10 +964,15 @@ async function removeFromQueue(url) {
 }
 
 function selectedQueueTools() {
+    if (URLSCAN_ONLY) return ckIsConfigured(cfg, "urlscan") ? ["urlscan"] : [];
     return CK.TOOLS.filter((t) => queueState.tools[t] && ckIsConfigured(cfg, t));
 }
 
 function toolPicker() {
+    if (URLSCAN_ONLY) {
+        return el("div", { class: "muted", style: "font-size:13px;margin-top:12px" },
+            "Every link gets the Quick Scan and the domain age, and is then sent to urlscan.io only.");
+    }
     const boxes = CK.TOOLS.filter((t) => ckIsConfigured(cfg, t)).map((t) => {
         const input = el("input", {
             type: "checkbox", id: `qt-${t}`, checked: !!queueState.tools[t], disabled: queueState.running,
@@ -982,7 +995,7 @@ function drawQueue() {
     const isEarlier = (i) => ["completed", "failed"].includes(i.status) && (!lastRun || (i.runId || 0) !== lastRun);
     const currentItems = items.filter((i) => !isEarlier(i));
     const earlierItems = items.filter(isEarlier);
-    const noTools = !CK.TOOLS.some((t) => ckIsConfigured(cfg, t));
+    const noTools = URLSCAN_ONLY ? !ckIsConfigured(cfg, "urlscan") : !CK.TOOLS.some((t) => ckIsConfigured(cfg, t));
     const pendingItems = items.filter((i) => i.status === "pending");
     const pending = pendingItems.length;
     const batch = Math.min(BATCH_SIZE, pending);
@@ -1006,7 +1019,7 @@ function drawQueue() {
                 el("span", { class: "muted" }, pending > batch ? `${pending} are waiting. They are done in batches of ${BATCH_SIZE} to respect the free limits of the tools.` : "All waiting links are included.")),
             toolPicker());
     } else {
-        control = el("p", { class: "muted" }, items.length ? "Nothing waiting. Right-click a link or selected text and choose Security Analysis > Add to queue." : "The queue is empty. Right-click a link or selected text and choose Security Analysis > Add to queue.");
+        control = el("p", { class: "muted" }, `${items.length ? "Nothing waiting." : "The queue is empty."} ${QUEUE_ADD_HINT}`);
     }
 
     const blockNodes = queueState.cands && queueState.cands.length && !queueState.running
@@ -1016,8 +1029,11 @@ function drawQueue() {
         : [];
 
     app.replaceChildren(
-        el("div", { class: "section-head" }, el("div", { class: "eyebrow" }, "Security Toolkit"), el("h2", {}, "Scan queue"),
-            el("p", {}, "Collect suspicious links during the day. One button analyses them all with every tool, then you block the bad ones: add, analyse, decide.")),
+        el("div", { class: "section-head" }, el("div", { class: "eyebrow" }, "Security Toolkit"), el("h2", {}, URLSCAN_ONLY ? "urlscan.io queue" : "Scan queue"),
+            el("p", {}, URLSCAN_ONLY
+                ? "Links collected for urlscan.io only. One button sends them all to urlscan.io, then you block the bad ones. "
+                : "Collect suspicious links during the day. One button analyses them all with every tool, then you block the bad ones: add, analyse, decide. ",
+            el("a", { href: URLSCAN_ONLY ? "report.html?queue=1" : "report.html?queue=urlscan" }, URLSCAN_ONLY ? "Open the scan queue for all tools" : "Open the urlscan.io queue"))),
         el("section", { class: "card stack" },
             el("div", { class: "eyebrow" }, "Step 2 · analyse"),
             el("div", { class: "row" },
@@ -1029,7 +1045,8 @@ function drawQueue() {
             queueState.message ? el("p", { class: "toast lvl-high" }, queueState.message) : null,
             queueState.note ? el("p", { class: "muted" }, queueState.note) : null),
         noTools && items.length ? el("p", { class: "toast lvl-medium", style: "margin-top:16px" },
-            "No reputation tool (urlscan.io, VirusTotal, AbuseIPDB) is set up on this computer, so links are only checked offline. ",
+            URLSCAN_ONLY ? "urlscan.io is not set up on this computer, so links are only checked offline. "
+                : "No reputation tool (urlscan.io, VirusTotal, AbuseIPDB) is set up on this computer, so links are only checked offline. ",
             "An offline check cannot prove a link is safe: spam links often show a harmless page to scanners. Add your API keys in Settings.") : null,
         currentItems.length ? el("section", { class: "card", style: "margin-top:16px" },
             el("h3", {}, lastRun && currentItems.some((i) => i.runId === lastRun) ? `This scan (${currentItems.length})` : `Waiting (${currentItems.length})`),
@@ -1145,7 +1162,7 @@ async function startQueueRun(tools = selectedQueueTools()) {
     queueState.progress = { total: batch.length, finished: 0 };
     Busy.begin("Analysing the queue");
     // The popup uses this heartbeat to tell a running scan from an interrupted one
-    const beat = () => browser.storage.local.set({ urlscanHeartbeat: Date.now() });
+    const beat = () => browser.storage.local.set({ [HEARTBEAT_KEY]: Date.now() });
     beat();
     const heartbeat = setInterval(beat, 5000);
     drawQueue();
@@ -1168,7 +1185,7 @@ async function startQueueRun(tools = selectedQueueTools()) {
 
     queueState.running = false;
     clearInterval(heartbeat);
-    await browser.storage.local.remove("urlscanHeartbeat");
+    await browser.storage.local.remove(HEARTBEAT_KEY);
     Busy.end("Queue finished");
     try {
         const res = await browser.runtime.sendMessage({
@@ -1192,8 +1209,8 @@ async function bootQueue() {
     await loadQueue();
     drawQueue();
     browser.storage.onChanged.addListener((changes, area) => {
-        if (area === "local" && changes.urlscanQueue && !queueState.running) {
-            queueState.items = changes.urlscanQueue.newValue || [];
+        if (area === "local" && changes[QUEUE_KEY] && !queueState.running) {
+            queueState.items = changes[QUEUE_KEY].newValue || [];
             drawQueue();
         }
     });

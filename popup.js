@@ -60,6 +60,7 @@ clearQueueBtn.addEventListener("click", () => {
     });
 });
 
+document.getElementById("openUrlscanQueue").addEventListener("click", () => openPage("report.html?queue=urlscan"));
 document.getElementById("openQuickScans").addEventListener("click", () => openPage("report.html"));
 document.getElementById("openSettings").addEventListener("click", () => {
     browser.runtime.openOptionsPage();

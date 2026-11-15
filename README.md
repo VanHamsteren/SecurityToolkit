@@ -123,7 +123,7 @@ Domain Age (RDAP) and Pivot Lookups require no account or API key.
 Right-click any link (or selected text) → **Security Analysis**:
 
 - **Add to queue (analyse later) / Analyse the queue** → collect links, then analyse them in one go with the tools you choose
-- **URLScan.io** → Scan Now
+- **URLScan.io** → Scan Now, or *Add to urlscan.io queue* / *Scan the urlscan.io queue*: a separate queue whose links only go to urlscan.io
 - **VirusTotal** → Scan Now
 - **AbuseIPDB** → Check IP Reputation
 - **NextDNS** → Add to Blocklist / Allowlist (per profile or all)
@@ -204,6 +204,7 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
   - 100 recent analyses instead of 25
 - 🌳 Keeps the urlscan.io domain chain tree from 1.7.0
 - 📋 The queue entry stays in the menu when nothing is waiting (*Open the queue*), and its count follows the queue page
+- 🆕 A second, separate queue in the *URLScan.io* submenu for links that should only go to urlscan.io (also reachable from the popup)
 - 🔤 *URLScan.io, Scan Now* also works on selected text
 
 ### Version 1.7.8
