@@ -58,6 +58,11 @@ function el(tag, attrs = {}, ...children) {
     return n;
 }
 
+/** Show these nodes as the page content; empty slots (null) are left out */
+function mount(...nodes) {
+    app.replaceChildren(...nodes.flat().filter(Boolean));
+}
+
 const fmtDate = (v) => {
     if (!v) return "";
     const d = new Date(v);
@@ -82,6 +87,30 @@ function hostOf(url) {
     } catch {
         return "";
     }
+}
+
+/**
+ * The NextDNS denylist, read by the background page (all profiles, all pages).
+ * counts: domain -> number of profiles that block it. A parent domain covers its subdomains.
+ */
+let denylist = null;
+async function loadDenylist(force = false) {
+    if (!force && denylist && Date.now() - denylist.at < 60000) return denylist;
+    try {
+        const res = await browser.runtime.sendMessage({ action: "getKnownBlockedDomains", force });
+        denylist = { ok: !!res?.success, counts: res?.counts || {}, profiles: res?.profiles || 0, error: res?.error || null, at: Date.now() };
+    } catch (e) {
+        denylist = { ok: false, counts: {}, profiles: 0, error: e.message, at: Date.now() };
+    }
+    return denylist;
+}
+
+/** In how many profiles is this host (or a parent domain of it) blocked? */
+function denylistHits(host, dl) {
+    const labels = String(host || "").toLowerCase().split(".");
+    let hits = 0;
+    for (let i = 0; i < labels.length - 1; i++) hits = Math.max(hits, dl?.counts?.[labels.slice(i).join(".")] || 0);
+    return hits;
 }
 
 function spinner() {
@@ -567,10 +596,40 @@ function blockPanel(cands, { primary, intro }) {
         if (list.length > 1) select.append(el("option", { value: "all" }, "All profiles"));
         list.forEach((p) => select.append(el("option", { value: p.id }, p.name)));
     });
-    return panel("Block domains",
+    const note = el("p", { class: "muted", style: "margin-top:10px;font-size:13px" });
+    const actions = el("div", { class: "row", style: "margin-top:14px" }, select, blockBtn);
+    const node = panel("Block domains",
         el("p", { class: "muted", style: "margin-bottom:12px" }, intro),
         cands.length ? boxes : el("p", { class: "empty" }, "No domains to suggest."),
-        el("div", { class: "row", style: "margin-top:14px" }, select, blockBtn), msg);
+        actions, msg, note);
+    // Domains that are already on the NextDNS denylist are not suggested again
+    loadDenylist().then((dl) => {
+        if (!dl.ok) {
+            if (cands.length && dl.error && dl.error !== "NextDNS is not set up") {
+                note.textContent = `Could not read your NextDNS denylist (${dl.error}), so domains you already block are not marked.`;
+            }
+            return;
+        }
+        let already = 0;
+        for (const box of node.querySelectorAll(".cand")) {
+            const input = box.querySelector("input");
+            const hits = denylistHits(input.value, dl);
+            if (!hits) continue;
+            const why = box.querySelector(".why");
+            if (hits >= dl.profiles) {
+                input.checked = false;
+                input.disabled = true;
+                box.classList.add("blocked");
+                why.append(" · already on your NextDNS denylist");
+                actions.before(box); // blocked domains go to the bottom of the list
+                already++;
+            } else {
+                why.append(` · on the denylist of ${hits} of ${dl.profiles} profiles`);
+            }
+        }
+        if (already) note.textContent = `${already} domain${already === 1 ? " is" : "s are"} already on your NextDNS denylist and cannot be ticked.`;
+    });
+    return node;
 }
 
 async function blockSelected(select, msg) {
@@ -586,6 +645,7 @@ async function blockSelected(select, msg) {
         const failed = res.results.filter((x) => !x.ok);
         msg.textContent = `Added ${ok} entr${ok === 1 ? "y" : "ies"} to the NextDNS denylist${failed.length ? `, ${failed.length} failed (${failed[0].error})` : ""}.`;
         msg.className = `toast ${failed.length ? "lvl-high" : "lvl-clean"}`;
+        denylist = null; // read the list again next time
     } catch (e) {
         msg.textContent = `Could not block: ${e.message}`;
         msg.className = "toast lvl-high";
@@ -795,7 +855,7 @@ async function renderHistory() {
     const { quickScanIndex: index = [] } = await browser.storage.local.get("quickScanIndex");
     const { urlscanQueue: queue = [] } = await browser.storage.local.get("urlscanQueue");
     const pending = queue.filter((i) => i.status === "pending").length;
-    app.replaceChildren(
+    mount(
         el("div", { class: "section-head" }, el("div", { class: "eyebrow" }, "Security Toolkit"), el("h2", {}, "Recent analyses"),
             el("p", {}, "Right-click any link, choose Security Analysis and then Analyse link. The result opens here, with one clear flow: analyse, check, look deeper, decide.")),
         queue.length ? el("div", { class: "card", style: "margin-bottom:16px" },
@@ -809,14 +869,22 @@ async function renderHistory() {
 }
 
 // ---------------------------------------------------------------------------
-// Scan queue page (urlscan.io batch)
+// Scan queue page
 // ---------------------------------------------------------------------------
 
-const queueState = { items: [], running: false, progress: null, cands: null, message: "" };
+// Two queues share this page: the toolkit's own (?queue=1, the tools you tick)
+// and a separate one that only sends links to urlscan.io (?queue=urlscan)
+const URLSCAN_ONLY = params.get("queue") === "urlscan";
+const QUEUE_KEY = URLSCAN_ONLY ? "urlscanOnlyQueue" : "urlscanQueue";
+const HEARTBEAT_KEY = URLSCAN_ONLY ? "urlscanOnlyHeartbeat" : "urlscanHeartbeat";
+const QUEUE_ADD_HINT = URLSCAN_ONLY
+    ? "Right-click a link or selected text and choose Security Analysis > URLScan.io > Add to urlscan.io queue."
+    : "Right-click a link or selected text and choose Security Analysis > Add to queue.";
+
+const queueState = { items: [], running: false, progress: null, cands: null, message: "", note: "", runId: 0, earlierOpen: false };
 
 async function loadQueue() {
-    const { urlscanQueue = [] } = await browser.storage.local.get("urlscanQueue");
-    queueState.items = urlscanQueue;
+    queueState.items = (await browser.storage.local.get(QUEUE_KEY))[QUEUE_KEY] || [];
     // Nothing is running here, so a link still marked "scanning" was interrupted: put it back in line
     if (!queueState.running) {
         let changed = false;
@@ -831,8 +899,60 @@ async function loadQueue() {
     }
 }
 
-function saveQueue() {
-    return browser.storage.local.set({ urlscanQueue: queueState.items });
+/**
+ * Save the queue. Links added from the right-click menu while this page is open exist only in storage,
+ * so they are merged in first; otherwise this page would overwrite them with its older copy.
+ * Pass { replace: true } after an explicit remove or clear.
+ */
+async function saveQueue({ replace = false } = {}) {
+    if (!replace) {
+        const stored = (await browser.storage.local.get(QUEUE_KEY))[QUEUE_KEY] || [];
+        const known = new Set(queueState.items.map((i) => i.url));
+        queueState.items.push(...stored.filter((i) => !known.has(i.url)));
+    }
+    await browser.storage.local.set({ [QUEUE_KEY]: queueState.items });
+}
+
+// Links whose domain is already blocked in every NextDNS profile are skipped, unless this is ticked
+const RESCAN_KEY = "queueRescanBlocked";
+queueState.rescanBlocked = false;
+
+/** Put links that were skipped as "already blocked" back in line */
+function requeueSkipped() {
+    let n = 0;
+    for (const it of queueState.items) {
+        if (!it.blocked) continue;
+        it.blocked = false;
+        it.status = "pending";
+        n++;
+    }
+    return n;
+}
+
+function rescanOption() {
+    const input = el("input", {
+        type: "checkbox", id: "qRescanBlocked", checked: queueState.rescanBlocked, disabled: queueState.running,
+        onchange: async (e) => {
+            queueState.rescanBlocked = e.target.checked;
+            await browser.storage.local.set({ [RESCAN_KEY]: queueState.rescanBlocked });
+            if (queueState.rescanBlocked && requeueSkipped()) await saveQueue({ replace: true });
+            drawQueue();
+        },
+    });
+    return el("label", { for: "qRescanBlocked", style: "display:flex;gap:8px;align-items:center;font-size:14px;margin-top:12px" }, input,
+        "Also analyse links whose domain is already on my NextDNS denylist");
+}
+
+const BATCH_SIZE = 20;
+const WORKERS = 3;
+queueState.tools = { urlscan: true, abuseipdb: true, virustotal: false }; // VirusTotal is slow (4 a minute), so opt-in
+
+/** Spaces out the start of calls to a rate-limited service */
+const gates = {};
+function gate(name, ms) {
+    const previous = gates[name] || Promise.resolve();
+    gates[name] = previous.then(() => ckSleep(ms));
+    return previous;
 }
 
 function queueStatusChip(it) {
@@ -840,187 +960,284 @@ function queueStatusChip(it) {
     return el("span", { class: `chip chip-${it.status}` }, labels[it.status] || it.status);
 }
 
+function resultChips(it) {
+    const chips = [];
+    if (it.denylisted) chips.push(el("span", { class: "chip chip-info" }, "Already blocked in NextDNS"));
+    if (it.quick) chips.push(el("span", { class: `chip chip-${it.quick.level}` }, `Quick Scan ${it.quick.score}/100`));
+    if (it.age) chips.push(el("span", { class: `chip chip-${it.age.level}` }, `Domain age: ${it.age.headline}`));
+    for (const t of CK.TOOLS) {
+        const r = it.tools?.[t];
+        if (!r) continue;
+        chips.push(r.status === "error"
+            ? el("span", { class: "chip chip-error", title: r.error || "" }, `${CK.NAMES[t]}: failed`)
+            : el("span", { class: `chip chip-${r.level}` }, `${CK.NAMES[t]}: ${r.headline}`));
+    }
+    return chips.length ? el("div", { class: "sources", style: "margin:6px 0 0" }, chips) : null;
+}
+
 function queueRow(it) {
-    const res = it.result;
     return el("tr", {},
         el("td", {}, queueStatusChip(it)),
-        el("td", { class: "url" }, defang(it.url)),
-        el("td", {}, res ? [el("span", { class: `chip chip-${res.level}` }, LEVEL_TEXT[res.level]), el("div", { class: "hint muted", style: "margin-top:4px;font-size:12.5px" }, res.headline)]
-            : it.error ? el("span", { class: "lvl-high", style: "font-size:13px" }, it.error)
-                : it.status === "scanning" ? el("span", { class: "status-line" }, spinner(), "urlscan.io is working") : el("span", { class: "muted" }, "-")),
+        el("td", { class: "url" }, defang(it.target || it.url)),
+        el("td", {},
+            it.blocked ? el("span", { class: "chip chip-info" }, "Already blocked in NextDNS")
+                : it.result ? el("span", { class: `chip chip-${it.result.level}` }, it.result.level === "unknown" ? it.result.headline : (LEVEL_TEXT[it.result.level] || it.result.headline))
+                : it.error ? el("span", { class: "lvl-high", style: "font-size:13px" }, it.error)
+                    : it.status === "scanning" ? el("span", { class: "status-line" }, spinner(), "Analysing...") : el("span", { class: "muted" }, "-"),
+            resultChips(it)),
         el("td", {}, el("div", { class: "row" },
-            it.uuid ? el("a", { class: "btn small", href: `https://urlscan.io/result/${it.uuid}/`, target: "_blank", rel: "noopener noreferrer" }, "urlscan report") : null,
-            el("button", { type: "button", class: "btn small", onclick: () => browser.runtime.sendMessage({ action: "qsRescanOffline", url: it.url, run: "all" }) }, "Full analysis"),
+            it.reportId
+                ? el("a", { class: "btn small", href: `report.html?id=${encodeURIComponent(it.reportId)}`, target: "_blank", rel: "noopener noreferrer" }, "Full analysis")
+                : el("button", { type: "button", class: "btn small", onclick: () => browser.runtime.sendMessage({ action: "qsRescanOffline", url: it.url, run: "all" }) }, "Full analysis"),
             el("button", { type: "button", class: "btn small quiet", disabled: queueState.running && it.status === "scanning", onclick: () => removeFromQueue(it.url) }, "Remove"))));
 }
 
 async function removeFromQueue(url) {
     queueState.items = queueState.items.filter((i) => i.url !== url);
-    await saveQueue();
+    await saveQueue({ replace: true });
     await browser.runtime.sendMessage({ action: "fetchProfiles" }).catch(() => {});
     drawQueue();
 }
 
+function selectedQueueTools() {
+    if (URLSCAN_ONLY) return ckIsConfigured(cfg, "urlscan") ? ["urlscan"] : [];
+    return CK.TOOLS.filter((t) => queueState.tools[t] && ckIsConfigured(cfg, t));
+}
+
+function toolPicker() {
+    if (URLSCAN_ONLY) {
+        return el("div", { class: "muted", style: "font-size:13px;margin-top:12px" },
+            "Every link gets the Quick Scan and the domain age, and is then sent to urlscan.io only.");
+    }
+    const boxes = CK.TOOLS.filter((t) => ckIsConfigured(cfg, t)).map((t) => {
+        const input = el("input", {
+            type: "checkbox", id: `qt-${t}`, checked: !!queueState.tools[t], disabled: queueState.running,
+            onchange: (e) => {
+                queueState.tools[t] = e.target.checked;
+            },
+        });
+        return el("label", { for: `qt-${t}`, style: "display:flex;gap:8px;align-items:center;font-size:14px" }, input,
+            t === "virustotal" ? "VirusTotal (slow: 4 links a minute)" : CK.NAMES[t]);
+    });
+    return el("div", { class: "stack", style: "margin-top:12px" },
+        el("div", { class: "muted", style: "font-size:13px" }, "Every link gets the Quick Scan and the domain age. Also check each link with:"),
+        el("div", { class: "row", style: "gap:20px" }, boxes));
+}
+
 function drawQueue() {
     const items = queueState.items;
-    const pending = items.filter((i) => i.status === "pending").length;
+    // The latest scan (and anything still waiting) on top; older results tucked away
+    const lastRun = Math.max(queueState.runId || 0, ...items.map((i) => i.runId || 0));
+    const isEarlier = (i) => ["completed", "failed"].includes(i.status) && (!lastRun || (i.runId || 0) !== lastRun);
+    const currentItems = items.filter((i) => !isEarlier(i));
+    const earlierItems = items.filter(isEarlier);
+    const noTools = URLSCAN_ONLY ? !ckIsConfigured(cfg, "urlscan") : !CK.TOOLS.some((t) => ckIsConfigured(cfg, t));
+    const pendingItems = items.filter((i) => i.status === "pending");
+    const pending = pendingItems.length;
+    const batch = Math.min(BATCH_SIZE, pending);
     const done = items.filter((i) => i.status === "completed");
     const flagged = done.filter((i) => i.result && (i.result.level === "high" || i.result.level === "medium")).length;
     const failed = items.filter((i) => i.status === "failed").length;
     const p = queueState.progress;
-    const configured = ckIsConfigured(cfg, "urlscan");
 
     let control;
-    if (!configured) {
-        control = el("div", { class: "callout info" }, el("strong", {}, "urlscan.io is not set up. "), "Add your API key to scan the queue. ",
-            el("div", { class: "row", style: "margin-top:12px" }, el("button", { type: "button", class: "btn primary", onclick: () => browser.runtime.openOptionsPage() }, "Open settings")));
-    } else if (queueState.running) {
+    if (queueState.running) {
         control = el("div", { class: "stack" },
             el("div", { class: "row" },
-                el("button", { type: "button", class: "btn primary is-busy", disabled: true, "aria-busy": "true" }, spinner(), "Scanning..."),
-                el("span", { class: "muted" }, p ? `Submitted ${p.submitted} of ${p.total}, finished ${p.finished}. You can leave this tab open and keep browsing.` : "Starting...")),
+                el("button", { type: "button", class: "btn primary is-busy", disabled: true, "aria-busy": "true" }, spinner(), "Analysing..."),
+                el("span", { class: "muted" }, p ? `${p.finished} of ${p.total} links finished. You can keep browsing, but leave this tab open.` : "Starting...")),
             el("div", { class: "progress", role: "progressbar", "aria-valuemin": "0", "aria-valuemax": String(p?.total || 1), "aria-valuenow": String(p?.finished || 0) },
                 el("div", { style: `width:${p && p.total ? Math.round((p.finished / p.total) * 100) : 0}%` })));
     } else if (pending) {
-        control = el("div", { class: "row" },
-            el("button", { type: "button", class: "btn primary", id: "btnScanQueue", onclick: runQueue }, `Scan ${pending} waiting link${pending === 1 ? "" : "s"}`),
-            el("span", { class: "muted" }, "Each link is sent to urlscan.io, 2.5 seconds apart to respect its rate limit."));
+        control = el("div", { class: "stack" },
+            el("div", { class: "row" },
+                el("button", { type: "button", class: "btn primary", id: "btnScanQueue", onclick: runQueue }, `Analyse the next ${batch} link${batch === 1 ? "" : "s"}`),
+                el("span", { class: "muted" }, pending > batch ? `${pending} are waiting. They are done in batches of ${BATCH_SIZE} to respect the free limits of the tools.` : "All waiting links are included.")),
+            toolPicker(), rescanOption());
     } else {
-        control = el("p", { class: "muted" }, items.length ? "Nothing waiting. Right-click more links and choose Add to scan queue." : "The queue is empty. Right-click a link, choose Security Analysis > URLScan.io > Add to scan queue.");
+        control = el("div", { class: "stack" },
+            el("p", { class: "muted" }, `${items.length ? "Nothing waiting." : "The queue is empty."} ${QUEUE_ADD_HINT}`),
+            items.some((i) => i.blocked) || queueState.rescanBlocked ? rescanOption() : null);
     }
 
     const blockNodes = queueState.cands && queueState.cands.length && !queueState.running
         ? [el("div", { class: "section-head", style: "margin-top:24px" }, el("div", { class: "eyebrow" }, "Step 3"), el("h2", {}, "Decide what to block"),
-            el("p", {}, "Links that urlscan.io flagged are ticked. Review them before you block."))]
-            .concat([blockPanel(queueState.cands, { primary: true, intro: "Domains from the queue. Popular and shared platforms are never suggested." })])
+            el("p", {}, "Links the checks flagged are ticked. Review them before you block."))]
+            .concat([blockPanel(queueState.cands, { primary: true, intro: "Domains from the batch, including every domain urlscan.io saw while loading each link. Popular and shared platforms are never suggested." })])
         : [];
 
-    app.replaceChildren(
-        el("div", { class: "section-head" }, el("div", { class: "eyebrow" }, "Security Toolkit"), el("h2", {}, "Scan queue"),
-            el("p", {}, "Collect suspicious links during the day, scan them all at once, then block the bad ones. Three steps: add, scan, decide.")),
+    mount(
+        el("div", { class: "section-head" }, el("div", { class: "eyebrow" }, "Security Toolkit"), el("h2", {}, URLSCAN_ONLY ? "urlscan.io queue" : "Scan queue"),
+            el("p", {}, URLSCAN_ONLY
+                ? "Links collected for urlscan.io only. One button sends them all to urlscan.io, then you block the bad ones. "
+                : "Collect suspicious links during the day. One button analyses them all with every tool, then you block the bad ones: add, analyse, decide. ",
+            el("a", { href: URLSCAN_ONLY ? "report.html?queue=1" : "report.html?queue=urlscan" }, URLSCAN_ONLY ? "Open the scan queue for all tools" : "Open the urlscan.io queue"))),
         el("section", { class: "card stack" },
-            el("div", { class: "eyebrow" }, "Step 2 · scan"),
+            el("div", { class: "eyebrow" }, "Step 2 · analyse"),
             el("div", { class: "row" },
                 el("span", { class: "chip chip-pending" }, `${pending} waiting`),
                 el("span", { class: "chip chip-done" }, `${done.length} done`),
                 flagged ? el("span", { class: "chip chip-high" }, `${flagged} flagged`) : null,
                 failed ? el("span", { class: "chip chip-failed" }, `${failed} failed`) : null),
             control,
-            queueState.message ? el("p", { class: "toast lvl-high" }, queueState.message) : null),
-        items.length ? el("section", { class: "card", style: "margin-top:16px" },
-            table(["Status", "Link", "Verdict", ""], items.map(queueRow), "queue-table"),
-            el("div", { class: "row", style: "margin-top:12px" },
-                el("button", { type: "button", class: "btn small danger", disabled: queueState.running, onclick: clearQueueNow }, "Clear the queue"))) : null,
+            queueState.message ? el("p", { class: "toast lvl-high" }, queueState.message) : null,
+            queueState.note ? el("p", { class: "muted" }, queueState.note) : null),
+        noTools && items.length ? el("p", { class: "toast lvl-medium", style: "margin-top:16px" },
+            URLSCAN_ONLY ? "urlscan.io is not set up on this computer, so links are only checked offline. "
+                : "No reputation tool (urlscan.io, VirusTotal, AbuseIPDB) is set up on this computer, so links are only checked offline. ",
+            "An offline check cannot prove a link is safe: spam links often show a harmless page to scanners. Add your API keys in Settings.") : null,
+        currentItems.length ? el("section", { class: "card", style: "margin-top:16px" },
+            el("h3", {}, lastRun && currentItems.some((i) => i.runId === lastRun) ? `This scan (${currentItems.length})` : `Waiting (${currentItems.length})`),
+            table(["Status", "Link", "Verdict", ""], currentItems.map(queueRow), "queue-table")) : null,
+        earlierItems.length ? el("section", { class: "card", style: "margin-top:16px" },
+            el("details", { open: queueState.earlierOpen, ontoggle: (e) => { queueState.earlierOpen = e.target.open; } },
+                el("summary", {}, `Earlier scans (${earlierItems.length})`),
+                table(["Status", "Link", "Verdict", ""], earlierItems.map(queueRow), "queue-table"),
+                el("div", { class: "row", style: "margin-top:12px" },
+                    el("button", { type: "button", class: "btn small", disabled: queueState.running, onclick: clearEarlier }, "Remove earlier scans")))) : null,
+        items.length ? el("div", { class: "row", style: "margin-top:12px" },
+            el("button", { type: "button", class: "btn small danger", disabled: queueState.running, onclick: clearQueueNow }, "Clear the queue")) : null,
         ...blockNodes);
+}
+
+async function clearEarlier() {
+    const lastRun = Math.max(queueState.runId || 0, ...queueState.items.map((i) => i.runId || 0));
+    queueState.items = queueState.items.filter((i) => !(["completed", "failed"].includes(i.status) && (!lastRun || (i.runId || 0) !== lastRun)));
+    await saveQueue({ replace: true });
+    drawQueue();
 }
 
 async function clearQueueNow() {
     if (!confirm("Remove every link from the scan queue?")) return;
     queueState.items = [];
     queueState.cands = null;
-    await saveQueue();
+    await saveQueue({ replace: true });
     await browser.runtime.sendMessage({ action: "fetchProfiles" }).catch(() => {});
     drawQueue();
 }
 
+/** One link: Quick Scan first (gives the IP and domain age), then the chosen tools side by side */
+async function processItem(it, tools) {
+    it.status = "scanning";
+    it.error = null;
+    it.tools = {};
+    it.runId = queueState.runId;
+    await saveQueue();
+    drawQueue();
+
+    const res = await browser.runtime.sendMessage({ action: "qsRescanOffline", url: it.url, openTab: false });
+    if (!res?.id) throw new Error("This is not a valid link or domain.");
+    const key = REPORT_PREFIX + res.id;
+    const report = (await browser.storage.local.get(key))[key];
+    if (!report) throw new Error("The Quick Scan result went missing.");
+    it.reportId = res.id;
+    it.target = report.target;
+
+    const host = report.url?.host || hostOf(report.target);
+    const ctx = { url: report.target, host, ip: report.hosts?.[host]?.ips?.[0] || null };
+    const states = {};
+    await Promise.all(tools.map(async (t) => {
+        if (t === "virustotal") await gate("vt", 16000);
+        if (t === "urlscan") await gate("urlscan", 2500);
+        const st = await ckRunTool(t, ctx, cfg, () => {});
+        states[t] = st;
+        it.tools[t] = { status: st.status, level: st.level, headline: st.headline, error: st.error };
+        await ckSetTool(res.id, t, st);
+        drawQueue();
+    }));
+
+    // Domains urlscan.io saw for this link, kept for the block step
+    it.chain = (states.urlscan?.chain || []).map((n) => n.domain);
+    const overall = ckOverall(report, states);
+    const age = ckDomainAge(report);
+    it.quick = { score: report.verdict?.score ?? 0, level: report.verdict?.level || "clean" };
+    it.age = age ? { level: age.level, headline: age.headline } : null;
+    // Only the offline Quick Scan ran: that says "no signals found", not "safe"
+    const verified = Object.values(states).some((s) => s.status === "done");
+    it.result = verified ? { level: overall.level, headline: overall.label }
+        : overall.level === "clean" ? { level: "unknown", headline: "Not verified (offline checks only)" }
+            : { level: overall.level, headline: overall.label };
+    it.status = "completed";
+}
+
 async function runQueue() {
     if (queueState.running) return;
+    const tools = selectedQueueTools();
     // permission request first: it needs the click gesture
-    const granted = await ckRequestPermissions(["urlscan"]);
+    const granted = tools.length ? await ckRequestPermissions(tools) : true;
     if (!granted) {
-        queueState.message = "urlscan.io needs permission to be contacted. Choose Allow in the prompt and try again.";
+        queueState.message = "A selected tool needs permission to be contacted. Choose Allow in the prompt and try again.";
         drawQueue();
         return;
     }
-    await startQueueRun();
+    await startQueueRun(tools);
 }
 
-async function startQueueRun() {
+async function startQueueRun(tools = selectedQueueTools()) {
     queueState.running = true;
     queueState.message = "";
     queueState.cands = null;
     cfg = await ckConfig();
     await loadQueue();
-    const pending = queueState.items.filter((i) => i.status === "pending");
-    queueState.progress = { total: pending.length, submitted: 0, finished: 0 };
-    Busy.begin("Scanning the queue");
+    queueState.runId = Date.now(); // this scan; everything finished before it is shown under "Earlier scans"
+    // Links whose domain is blocked in every NextDNS profile need no analysis: skip them
+    queueState.note = "";
+    const dl = await loadDenylist(true);
+    if (queueState.rescanBlocked) {
+        // analyse them anyway, but keep telling the user they are blocked already
+        for (const it of queueState.items) {
+            if (it.status === "pending") it.denylisted = dl.ok && dl.profiles > 0 && denylistHits(hostOf(it.url), dl) >= dl.profiles;
+        }
+    } else if (dl.ok && dl.profiles) {
+        let skipped = 0;
+        for (const it of queueState.items) {
+            if (it.status !== "pending" || denylistHits(hostOf(it.url), dl) < dl.profiles) continue;
+            it.status = "completed";
+            it.blocked = true;
+            it.runId = queueState.runId;
+            it.error = null;
+            skipped++;
+        }
+        if (skipped) {
+            queueState.note = `${skipped} link${skipped === 1 ? " was" : "s were"} skipped because the domain is already on your NextDNS denylist. Tick \"Also analyse links whose domain is already on my NextDNS denylist\" to analyse them anyway.`;
+            await saveQueue();
+        }
+    }
+    const batch = queueState.items.filter((i) => i.status === "pending").slice(0, BATCH_SIZE);
+    queueState.progress = { total: batch.length, finished: 0 };
+    Busy.begin("Analysing the queue");
     // The popup uses this heartbeat to tell a running scan from an interrupted one
-    const beat = () => browser.storage.local.set({ urlscanHeartbeat: Date.now() });
+    const beat = () => browser.storage.local.set({ [HEARTBEAT_KEY]: Date.now() });
     beat();
     const heartbeat = setInterval(beat, 5000);
     drawQueue();
 
-    const waiting = [];
-    for (const it of pending) {
-        it.status = "scanning";
-        it.error = null;
-        await saveQueue();
-        drawQueue();
-        try {
+    const todo = [...batch];
+    const worker = async () => {
+        for (let it = todo.shift(); it; it = todo.shift()) {
             try {
-                it.uuid = await ckUrlscanSubmit(it.url, cfg);
-            } catch (e) {
-                if (/rate limit/i.test(e.hint || "")) { // wait once, then retry
-                    await ckSleep(30000);
-                    it.uuid = await ckUrlscanSubmit(it.url, cfg);
-                } else {
-                    throw e;
-                }
-            }
-            waiting.push(it);
-        } catch (e) {
-            it.status = "failed";
-            it.error = e.hint || e.message;
-            queueState.progress.finished += 1;
-        }
-        queueState.progress.submitted += 1;
-        await saveQueue();
-        drawQueue();
-        await ckSleep(2500);
-    }
-
-    // poll the submitted scans round-robin so urlscan.io's result limit is respected
-    const deadline = Date.now() + 180000;
-    while (waiting.length && Date.now() < deadline) {
-        for (const it of [...waiting]) {
-            try {
-                const res = await ckUrlscanFetchOnce(it.uuid, cfg);
-                if (res) {
-                    it.status = "completed";
-                    it.result = { level: res.level, headline: res.headline };
-                    waiting.splice(waiting.indexOf(it), 1);
-                    queueState.progress.finished += 1;
-                    await saveQueue();
-                    drawQueue();
-                }
+                await processItem(it, tools);
             } catch (e) {
                 it.status = "failed";
                 it.error = e.message;
-                waiting.splice(waiting.indexOf(it), 1);
-                queueState.progress.finished += 1;
-                await saveQueue();
-                drawQueue();
             }
-            await ckSleep(1000);
+            queueState.progress.finished += 1;
+            await saveQueue();
+            drawQueue();
         }
-        if (waiting.length) await ckSleep(3000);
-    }
-    for (const it of waiting) {
-        it.status = "failed";
-        it.error = "urlscan.io took too long. The scan may still finish: open the urlscan report.";
-        queueState.progress.finished += 1;
-    }
-    await saveQueue();
+    };
+    await Promise.all(Array.from({ length: Math.min(WORKERS, batch.length) }, worker));
 
     queueState.running = false;
     clearInterval(heartbeat);
-    await browser.storage.local.remove("urlscanHeartbeat");
+    await browser.storage.local.remove(HEARTBEAT_KEY);
     Busy.end("Queue finished");
     try {
         const res = await browser.runtime.sendMessage({
             action: "qsBlockCandidatesFor",
-            links: queueState.items.filter((i) => i.status === "completed").map((i) => ({
-                url: i.url, flagged: i.result && (i.result.level === "high" || i.result.level === "medium"),
+            links: batch.filter((i) => i.status === "completed" && !i.blocked).map((i) => ({
+                url: i.target || i.url, flagged: i.result && (i.result.level === "high" || i.result.level === "medium"),
+                chain: i.chain || [],
             })),
         });
         queueState.cands = res?.candidates || [];
@@ -1035,17 +1252,19 @@ async function bootQueue() {
     document.getElementById("btnMarkdown").disabled = true;
     document.getElementById("btnJson").disabled = true;
     cfg = await ckConfig();
+    queueState.rescanBlocked = Boolean((await browser.storage.local.get(RESCAN_KEY))[RESCAN_KEY]);
     await loadQueue();
     drawQueue();
     browser.storage.onChanged.addListener((changes, area) => {
-        if (area === "local" && changes.urlscanQueue && !queueState.running) {
-            queueState.items = changes.urlscanQueue.newValue || [];
+        if (area === "local" && changes[QUEUE_KEY] && !queueState.running) {
+            queueState.items = changes[QUEUE_KEY].newValue || [];
             drawQueue();
         }
     });
-    if (params.get("autostart") && !queueState.running && ckIsConfigured(cfg, "urlscan")
-        && queueState.items.some((i) => i.status === "pending") && (await ckHasPermission("urlscan"))) {
-        startQueueRun();
+    if (params.get("autostart") && !queueState.running && queueState.items.some((i) => i.status === "pending")) {
+        const tools = selectedQueueTools();
+        const havePerm = (await Promise.all(tools.map(ckHasPermission))).every(Boolean);
+        if (havePerm) startQueueRun(tools); // otherwise the button asks for permission with a click
     }
 }
 

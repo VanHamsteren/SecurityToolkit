@@ -122,7 +122,8 @@ Domain Age (RDAP) and Pivot Lookups require no account or API key.
 
 Right-click any link (or selected text) → **Security Analysis**:
 
-- **URLScan.io** → Scan Now, or Add to Scan Queue / Process Queue for batches
+- **Add to queue (analyse later) / Analyse the queue** → collect links, then analyse them in one go with the tools you choose
+- **URLScan.io** → Scan Now, or *Add to urlscan.io queue* / *Scan the urlscan.io queue*: a separate queue whose links only go to urlscan.io
 - **VirusTotal** → Scan Now
 - **AbuseIPDB** → Check IP Reputation
 - **NextDNS** → Add to Blocklist / Allowlist (per profile or all)
@@ -193,7 +194,28 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.7.8 (Current)
+### Version 1.7.11 (Current)
+- 🌳 The block step of both queues now also lists every domain from the urlscan.io domain chain of each link, as the single-link analysis already did. Domains from a flagged link are ticked; popular sites and shared platforms are still left out
+
+### Version 1.7.10
+- 🔁 New option on the queue page: *Also analyse links whose domain is already on my NextDNS denylist*. Ticking it puts the skipped links back in line; they keep an *Already blocked in NextDNS* label next to their verdict
+- 🐛 The queue page no longer shows a stray "null" between its sections
+- ↔️ The link column in the queue table is wider, so links wrap less
+
+### Version 1.7.9
+- ♻️ Restores everything from the published 1.7.2 to 1.7.6 releases that 1.7.7 dropped by accident (1.7.7 was built from older source):
+  - the toolkit's own queue directly under *Security Analysis*: *Add to queue (analyse later)* and *Analyse the queue*, for links and selected text
+  - the queue page runs Quick Scan plus the tools you tick (urlscan.io, AbuseIPDB, VirusTotal), in batches, with earlier runs kept apart
+  - the version badge in the toolbar popup, read from the manifest
+  - domains already on a NextDNS denylist are marked in the block step
+  - a warning when urlscan.io was redirected to a well-known harmless site (cloaking)
+  - 100 recent analyses instead of 25
+- 🌳 Keeps the urlscan.io domain chain tree from 1.7.0
+- 📋 The queue entry stays in the menu when nothing is waiting (*Open the queue*), and its count follows the queue page
+- 🆕 A second, separate queue in the *URLScan.io* submenu for links that should only go to urlscan.io (also reachable from the popup)
+- 🔤 *URLScan.io, Scan Now* also works on selected text
+
+### Version 1.7.8
 - 📋 The scan queue is always reachable from the right-click menu: *Security Analysis, URLScan.io* shows *Process Queue* when links are waiting, otherwise *Open Scan Queue*
 
 ### Version 1.7.7

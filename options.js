@@ -165,10 +165,10 @@ function wireTest(button, input, action, serviceName, origin) {
     });
 }
 
-wireTest($("testUrlscan"), apiKeyInput, "testUrlscanConnection", "urlscan.io", null);
+wireTest($("testUrlscan"), apiKeyInput, "testUrlscanConnection", "urlscan.io", "https://urlscan.io/*");
 wireTest($("testVt"), vtApiKeyInput, "testVirusTotalConnection", "VirusTotal", "https://www.virustotal.com/*");
 wireTest($("testAbuse"), abuseIpdbApiKeyInput, "testAbuseIpdbConnection", "AbuseIPDB", "https://api.abuseipdb.com/*");
-wireTest($("testNextDns"), nextdnsApiKeyInput, "testNextDnsConnection", "NextDNS", null);
+wireTest($("testNextDns"), nextdnsApiKeyInput, "testNextDnsConnection", "NextDNS", "https://api.nextdns.io/*");
 
 // Save
 form.addEventListener("submit", (e) => {
@@ -299,3 +299,6 @@ document.addEventListener("DOMContentLoaded", async () => {
         showStatus("Could not load the saved settings.", false);
     }
 });
+
+// The version comes from the manifest, so it can never be out of date
+$("version").textContent = browser.runtime.getManifest().version;

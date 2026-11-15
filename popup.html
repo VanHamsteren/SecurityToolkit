@@ -13,6 +13,7 @@
             <img class="logo logo-light" src="img/logo-wide.png" alt="PaulRutten.nl" width="132" height="40" />
             <img class="logo logo-dark" src="img/logo-wide-white.png" alt="" width="132" height="40" />
             <span class="tool-name">Security Toolkit</span>
+            <span class="version" id="version"></span>
         </header>
 
         <main class="popup-body">
@@ -35,13 +36,14 @@
                 </div>
 
                 <p id="emptyState" class="empty" hidden>
-                    The queue is empty. Right-click a link and choose Security Analysis, URLScan.io, Add to scan queue.
+                    The queue is empty. Right-click a link or selected text and choose Security Analysis, Add to queue.
                 </p>
             </section>
 
             <section class="card">
                 <div class="eyebrow">More</div>
                 <div class="actions">
+                    <button type="button" id="openUrlscanQueue" class="btn">urlscan.io queue</button>
                     <button type="button" id="openQuickScans" class="btn">Recent analyses</button>
                     <button type="button" id="openSettings" class="btn">Settings</button>
                 </div>

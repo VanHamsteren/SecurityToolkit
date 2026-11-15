@@ -470,7 +470,9 @@ details.fold[open] > summary {
     font-family: var(--font-mono);
     font-size: 12.5px;
     word-break: break-all;
-    max-width: 380px;
+    min-width: 260px;
+    width: 40%;
+    max-width: 480px;
 }
 
 .queue-table td .row {
@@ -511,3 +513,5 @@ details.fold[open] > summary {
     border: 1px solid currentColor;
     font-size: 11px;
 }
+
+.cand.blocked { opacity: .6; }

@@ -152,6 +152,36 @@ function ckUrlscanChain(data) {
     return [...nodes.values()];
 }
 
+/** Well-known harmless sites. Landing here from an unknown domain is what a cloaking redirect looks like. */
+const CK_DECOY_DOMAINS = new Set([
+    "google.com", "youtube.com", "w3schools.com", "wikipedia.org", "microsoft.com", "bing.com", "yahoo.com",
+    "amazon.com", "apple.com", "cloudflare.com", "example.com", "example.org", "github.com", "stackoverflow.com",
+    "office.com", "live.com", "outlook.com", "facebook.com", "instagram.com", "linkedin.com", "twitter.com", "x.com",
+    "reddit.com", "netflix.com", "nu.nl", "bol.com", "duckduckgo.com", "baidu.com", "adobe.com", "paypal.com",
+    "mozilla.org", "msn.com", "booking.com", "ebay.com", "cnn.com", "bbc.com", "bbc.co.uk", "nos.nl", "google.nl",
+    "marktplaats.nl", "wordpress.org", "w3.org", "tiktok.com", "whatsapp.com", "zoom.us", "dropbox.com", "spotify.com",
+]);
+
+/** Registrable domain, good enough for this check (no full Public Suffix List) */
+function ckApex(host) {
+    const labels = String(host || "").toLowerCase().replace(/\.$/, "").split(".").filter(Boolean);
+    if (labels.length <= 2) return labels.join(".");
+    const lastTwo = labels.slice(-2).join(".");
+    return /^(co|com|org|net|ac|gov)\.[a-z]{2}$/.test(lastTwo) ? labels.slice(-3).join(".") : lastTwo;
+}
+
+/**
+ * Did urlscan.io get sent from an unknown domain to a harmless, well-known site?
+ * Phishing and spam redirectors do that to scanners, so the "clean" verdict is worthless then.
+ * @returns {{from: string, to: string}|null}
+ */
+function ckCloaking(data) {
+    const hostOf = (u) => { try { return new URL(u).hostname; } catch { return ""; } };
+    const from = (data?.task?.apexDomain || ckApex(data?.task?.domain || hostOf(data?.task?.url))).toLowerCase();
+    const to = (data?.page?.apexDomain || ckApex(data?.page?.domain || hostOf(data?.page?.url))).toLowerCase();
+    return from && to && from !== to && CK_DECOY_DOMAINS.has(to) && !CK_DECOY_DOMAINS.has(from) ? { from, to } : null;
+}
+
 function ckParseUrlscan(uuid, data) {
     const overall = data?.verdicts?.overall || {};
     const us = data?.verdicts?.urlscan || {};
@@ -161,12 +191,16 @@ function ckParseUrlscan(uuid, data) {
     const categories = [...new Set([...(overall.categories || []), ...(us.categories || [])])];
     const brands = (us.brands || []).map((b) => b.name || b.key).filter(Boolean);
     const hasVerdict = Boolean(overall.hasVerdicts || us.hasVerdicts);
+    const cloaking = ckCloaking(data);
 
     let level = "unknown";
     let headline = "No verdict available";
     if (malicious) {
         level = "high";
         headline = "Flagged as malicious";
+    } else if (cloaking) {
+        level = "medium";
+        headline = `Cloaking: sent to ${cloaking.to}`;
     } else if (score > 0 || categories.length || brands.length) {
         level = "medium";
         headline = "Some suspicious indicators";
@@ -191,6 +225,7 @@ function ckParseUrlscan(uuid, data) {
         chain,
         link: { href: `https://urlscan.io/result/${uuid}/`, label: "Open the urlscan.io report" },
         screenshot: `https://urlscan.io/screenshots/${uuid}.png`,
+        note: cloaking ? `${cloaking.from} sent the scanner to ${cloaking.to}, a harmless site. Spam and phishing links do this to hide from scanners, so "no malicious verdict" proves nothing here. Real visitors may see something else.` : undefined,
     });
 }
 
@@ -479,6 +514,6 @@ function ckSetTool(id, tool, state) {
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         CK, CkError, ckParseUrlscan, ckParseVirusTotal, ckParseAbuseIpdb, ckDomainAge, ckOverall,
-        ckRunTool, ckIsConfigured, ckBase64Url, ckNormalizeUrl, ckIsIp, ckUrlscanSubmit, ckUrlscanWait, ckUrlscanFetchOnce,
+        ckRunTool, ckIsConfigured, ckCloaking, ckApex, ckBase64Url, ckNormalizeUrl, ckIsIp, ckUrlscanSubmit, ckUrlscanWait, ckUrlscanFetchOnce,
     };
 }

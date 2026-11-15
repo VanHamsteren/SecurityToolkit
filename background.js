@@ -1,4 +1,4 @@
-/* global browser, qsStart */
+/* global browser, qsStart, qsNormalizeInput */
 /**
  * URLScan.io & NextDNS Firefox Extension - Background Service Worker
  * Handles security tool integrations and context menu management
@@ -818,40 +818,119 @@ async function fetchNextDnsProfiles() {
 }
 
 /**
- * Get URLScan queue from storage
+ * Every domain on the NextDNS denylist of every profile. The API pages its answers, so the
+ * cursor is followed until it is null; reading only the first page misses most of a long list.
+ * @returns {Promise<string[]>}
+ */
+async function fetchDenylistPages(profileId, apiKey) {
+    const domains = [];
+    let cursor = null;
+    let limit = 500;
+    for (let page = 0; page < 100; page++) {
+        const url = new URL(`https://api.nextdns.io/profiles/${encodeURIComponent(profileId)}/denylist`);
+        if (limit) url.searchParams.set("limit", String(limit));
+        if (cursor) url.searchParams.set("cursor", cursor);
+        const r = await fetch(url.href, { headers: { "X-Api-Key": apiKey } });
+        if (r.status === 400 && limit) {
+            limit = null; // this endpoint does not accept that page size: use its default
+            page--;
+            continue;
+        }
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const body = await r.json();
+        for (const d of body.data || []) {
+            if (d && d.id && d.active !== false) domains.push(String(d.id).toLowerCase().replace(/^\*\./, ""));
+        }
+        cursor = body.meta?.pagination?.cursor || null;
+        if (!cursor) break;
+    }
+    return domains;
+}
+
+// Denylist cache: only a successful read is cached, so one failed call never hides the list for minutes
+let denylistCache = { at: 0, ok: false, counts: {}, profiles: 0 };
+let denylistLoading = null;
+
+/**
+ * How many NextDNS profiles have each domain on their denylist.
+ * @returns {Promise<{ok: boolean, counts: object, profiles: number, error?: string}>}
+ */
+function getKnownBlockedDomains(force = false) {
+    if (!force && denylistCache.ok && Date.now() - denylistCache.at < 120000) return Promise.resolve(denylistCache);
+    if (denylistLoading) return denylistLoading;
+    denylistLoading = (async () => {
+        try {
+            const { nextdnsApiKey: apiKey } = await browser.storage.sync.get("nextdnsApiKey");
+            if (!apiKey) return { ok: false, counts: {}, profiles: 0, error: "NextDNS is not set up" };
+            let profiles = nextDnsProfiles;
+            if (!profiles.length) {
+                profiles = await fetchNextDnsProfiles();
+                if (profiles.length) nextDnsProfiles = profiles;
+            }
+            if (!profiles.length) return { ok: false, counts: {}, profiles: 0, error: "No NextDNS profiles found" };
+            const counts = {};
+            for (const p of profiles) {
+                for (const d of new Set(await fetchDenylistPages(p.id, apiKey))) counts[d] = (counts[d] || 0) + 1;
+            }
+            denylistCache = { at: Date.now(), ok: true, counts, profiles: profiles.length };
+            return denylistCache;
+        } catch (error) {
+            console.error("Failed to load the NextDNS denylist:", error);
+            return { ok: false, counts: {}, profiles: 0, error: error.message };
+        } finally {
+            denylistLoading = null;
+        }
+    })();
+    return denylistLoading;
+}
+
+// Two queues: the toolkit's own (every tool) and one that only sends links to urlscan.io
+const QUEUE_KEYS = { all: "urlscanQueue", urlscan: "urlscanOnlyQueue" };
+
+/**
+ * Get a scan queue from storage
+ * @param {"all"|"urlscan"} kind - Which queue
  * @returns {Array} Queue items
  */
-async function getUrlScanQueue() {
+async function getUrlScanQueue(kind = "all") {
     try {
-        const { urlscanQueue = [] } = await browser.storage.local.get([
-            "urlscanQueue",
-        ]);
-        return urlscanQueue;
+        const key = QUEUE_KEYS[kind];
+        return (await browser.storage.local.get(key))[key] || [];
     } catch (error) {
-        console.error("Failed to get URLScan queue:", error);
+        console.error("Failed to get the scan queue:", error);
         return [];
     }
 }
 
 /**
- * Save URLScan queue to storage
+ * Save a scan queue to storage
  * @param {Array} queue - Queue items
+ * @param {"all"|"urlscan"} kind - Which queue
  */
-async function saveUrlScanQueue(queue) {
+async function saveUrlScanQueue(queue, kind = "all") {
     try {
-        await browser.storage.local.set({ urlscanQueue: queue });
+        await browser.storage.local.set({ [QUEUE_KEYS[kind]]: queue });
     } catch (error) {
-        console.error("Failed to save URLScan queue:", error);
+        console.error("Failed to save the scan queue:", error);
     }
 }
 
 /**
- * Add URL to URLScan queue
- * @param {string} url - URL to add
+ * Add a URL to a scan queue
+ * @param {string} input - URL or domain to add
+ * @param {"all"|"urlscan"} kind - Which queue
  */
-async function addToUrlScanQueue(url) {
+async function addToUrlScanQueue(input, kind = "all") {
+    let url;
     try {
-        const queue = await getUrlScanQueue();
+        // Selected text may be a bare or defanged domain; store a real URL
+        url = qsNormalizeInput(input);
+    } catch {
+        notifyError("Scan queue", `Not a valid URL or domain: ${String(input).slice(0, 80)}`);
+        return;
+    }
+    try {
+        const queue = await getUrlScanQueue(kind);
 
         // Check for duplicates
         if (queue.some((item) => item.url === url)) {
@@ -872,12 +951,16 @@ async function addToUrlScanQueue(url) {
             error: null,
         });
 
-        await saveUrlScanQueue(queue);
-        notifySuccess(`Added to scan queue (${queue.length} URLs)`);
+        await saveUrlScanQueue(queue, kind);
+        notifySuccess(`Added to ${kind === "urlscan" ? "urlscan.io" : "scan"} queue (${queue.length} URLs)`);
+        // Always confirm on the toolbar button, whatever the notification level is
+        const pending = queue.filter((i) => i.status === "pending").length;
+        browser.action.setBadgeBackgroundColor({ color: "#0F746C" });
+        browser.action.setBadgeText({ text: String(pending) });
+        setTimeout(() => {
+            if (activeJobs === 0) browser.action.setBadgeText({ text: "" });
+        }, 3000);
         console.log("Added to URLScan queue:", url);
-
-        // Update context menus to show new count
-        await createContextMenus();
     } catch (error) {
         console.error("Failed to add to queue:", error);
         notifyError("Queue Error", "Failed to add URL to scan queue");
@@ -979,15 +1062,45 @@ async function processUrlScanQueue() {
  */
 async function clearUrlScanQueue() {
     await saveUrlScanQueue([]);
-    await createContextMenus(); // Update menu to remove count
     notifySuccess("Queue cleared");
     console.log("URLScan queue cleared");
+}
+
+/** Title of the queue menu entry: scan when links are waiting, otherwise open */
+function queueMenuTitle(queue, kind = "all") {
+    const pending = queue.filter((item) => item.status === "pending").length;
+    const name = kind === "urlscan" ? "urlscan.io queue" : "queue";
+    if (pending > 0) return `🚀 ${kind === "urlscan" ? "Scan" : "Analyse"} the ${name} (${pending} link${pending !== 1 ? "s" : ""})`;
+    return queue.length > 0 ? `📋 Open the ${name} (${queue.length})` : `📋 Open the ${name} (empty)`;
+}
+
+// Menu changes run one after another, so overlapping rebuilds cannot interleave
+let menuChain = Promise.resolve();
+
+function createContextMenus() {
+    menuChain = menuChain.then(buildContextMenus);
+    return menuChain;
+}
+
+/** Keep the count in the queue menu entry current without rebuilding everything */
+function refreshQueueMenuTitle() {
+    menuChain = menuChain.then(async () => {
+        try {
+            await browser.contextMenus.update("urlscan-queue-open", { title: queueMenuTitle(await getUrlScanQueue()) });
+            await browser.contextMenus.update("urlscan-only-queue-open", {
+                title: queueMenuTitle(await getUrlScanQueue("urlscan"), "urlscan"),
+            });
+        } catch (error) {
+            console.error("Failed to update the queue menu entry:", error);
+        }
+    });
+    return menuChain;
 }
 
 /**
  * Create context menus based on available integrations
  */
-async function createContextMenus() {
+async function buildContextMenus() {
     try {
         // Remove all existing menus
         await browser.contextMenus.removeAll();
@@ -1007,7 +1120,7 @@ async function createContextMenus() {
         browser.contextMenus.create({
             id: "quickscan",
             parentId: "security-parent",
-            title: "🔎 Analyse link (all tools)",
+            title: "🔎 Analyse link now (all tools)",
             contexts: contexts,
         });
 
@@ -1018,6 +1131,22 @@ async function createContextMenus() {
             contexts: contexts,
         });
 
+        // Collect now, analyse later: nothing starts until the queue page is run
+        browser.contextMenus.create({
+            id: "urlscan-queue-add",
+            parentId: "security-parent",
+            title: "➕ Add to queue (analyse later)",
+            contexts: contexts,
+        });
+
+        // Always present, so the queue page is reachable when nothing is waiting too
+        browser.contextMenus.create({
+            id: "urlscan-queue-open",
+            parentId: "security-parent",
+            title: queueMenuTitle(await getUrlScanQueue()),
+            contexts: contexts,
+        });
+
         browser.contextMenus.create({
             id: "quickscan-separator",
             parentId: "security-parent",
@@ -1025,18 +1154,12 @@ async function createContextMenus() {
             contexts: contexts,
         });
 
-        // Get queue count for URLScan menu
-        const queue = await getUrlScanQueue();
-        const pendingCount = queue.filter(
-            (item) => item.status === "pending",
-        ).length;
-
         // Add URLScan.io parent menu
         browser.contextMenus.create({
             id: "urlscan-parent",
             parentId: "security-parent",
             title: "URLScan.io",
-            contexts: ["link"],
+            contexts: contexts,
             icons: {
                 16: "icons/urlscan_16.png",
             },
@@ -1047,40 +1170,30 @@ async function createContextMenus() {
             id: "urlscan-submit",
             parentId: "urlscan-parent",
             title: "🔍 Scan Now",
-            contexts: ["link"],
+            contexts: contexts,
         });
 
-        // Add "Add to Queue" option
+        // A separate queue that only sends links to urlscan.io
         browser.contextMenus.create({
-            id: "urlscan-queue-add",
-            parentId: "urlscan-parent",
-            title: "➕ Add to Scan Queue",
-            contexts: ["link"],
-        });
-
-        // Queue entry is always visible: process when something is pending, otherwise just open the page
-        browser.contextMenus.create({
-            id: "urlscan-queue-separator",
+            id: "urlscan-only-queue-separator",
             parentId: "urlscan-parent",
             type: "separator",
-            contexts: ["link"],
+            contexts: contexts,
         });
 
-        if (pendingCount > 0) {
-            browser.contextMenus.create({
-                id: "urlscan-queue-process",
-                parentId: "urlscan-parent",
-                title: `🚀 Process Queue (${pendingCount} URL${pendingCount !== 1 ? "s" : ""})`,
-                contexts: ["link"],
-            });
-        } else {
-            browser.contextMenus.create({
-                id: "urlscan-queue-open",
-                parentId: "urlscan-parent",
-                title: queue.length > 0 ? `📋 Open Scan Queue (${queue.length})` : "📋 Open Scan Queue (empty)",
-                contexts: ["link"],
-            });
-        }
+        browser.contextMenus.create({
+            id: "urlscan-only-queue-add",
+            parentId: "urlscan-parent",
+            title: "➕ Add to urlscan.io queue",
+            contexts: contexts,
+        });
+
+        browser.contextMenus.create({
+            id: "urlscan-only-queue-open",
+            parentId: "urlscan-parent",
+            title: queueMenuTitle(await getUrlScanQueue("urlscan"), "urlscan"),
+            contexts: contexts,
+        });
 
         // Add VirusTotal parent menu
         browser.contextMenus.create({
@@ -1371,13 +1484,17 @@ browser.contextMenus.onClicked.addListener(async (info) => {
         console.log("Adding to scan queue:", target);
         addToUrlScanQueue(target);
     }
-    // URLScan.io - Process Queue: open the queue page, which scans and shows progress
-    else if (menuItemId === "urlscan-queue-process") {
-        browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1&autostart=1"), active: true });
-    }
-    // URLScan.io - Open the queue page without starting a scan
+    // Scan queue: start scanning when links are waiting, otherwise just open the page
     else if (menuItemId === "urlscan-queue-open") {
-        browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1"), active: true });
+        const pending = (await getUrlScanQueue()).some((item) => item.status === "pending");
+        browser.tabs.create({ url: browser.runtime.getURL(`report.html?queue=1${pending ? "&autostart=1" : ""}`), active: true });
+    }
+    // The urlscan.io-only queue
+    else if (menuItemId === "urlscan-only-queue-add") {
+        addToUrlScanQueue(target, "urlscan");
+    } else if (menuItemId === "urlscan-only-queue-open") {
+        const pending = (await getUrlScanQueue("urlscan")).some((item) => item.status === "pending");
+        browser.tabs.create({ url: browser.runtime.getURL(`report.html?queue=urlscan${pending ? "&autostart=1" : ""}`), active: true });
     }
     // Domain Age (RDAP)
     else if (menuItemId === "domain-age") {
@@ -1744,6 +1861,13 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true; // Keep message channel open for async response
     }
 
+    if (message.action === "getKnownBlockedDomains") {
+        getKnownBlockedDomains(!!message.force).then((res) => sendResponse({
+            success: res.ok, counts: res.counts, profiles: res.profiles, error: res.error || null,
+        }));
+        return true;
+    }
+
     if (message.action === "fetchProfiles") {
         // Fetch profiles and rebuild menus
         (async () => {
@@ -1768,7 +1892,6 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const queue = await getUrlScanQueue();
             const filtered = queue.filter((item) => item.url !== message.url);
             await saveUrlScanQueue(filtered);
-            await createContextMenus(); // Update menu count
             sendResponse({ success: true });
         })();
         return true;
@@ -1807,6 +1930,10 @@ createContextMenus();
 
 // Listen for storage changes to update menus dynamically
 browser.storage.onChanged.addListener((changes, areaName) => {
+    // The queue page writes the queue itself, so follow storage rather than our own calls
+    if (areaName === "local" && (changes.urlscanQueue || changes.urlscanOnlyQueue)) {
+        refreshQueueMenuTitle();
+    }
     if (areaName === "sync") {
         // Update notification level if changed
         if (changes.notificationLevel) {

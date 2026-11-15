@@ -60,6 +60,7 @@ clearQueueBtn.addEventListener("click", () => {
     });
 });
 
+document.getElementById("openUrlscanQueue").addEventListener("click", () => openPage("report.html?queue=urlscan"));
 document.getElementById("openQuickScans").addEventListener("click", () => openPage("report.html"));
 document.getElementById("openSettings").addEventListener("click", () => {
     browser.runtime.openOptionsPage();
@@ -68,3 +69,6 @@ document.getElementById("openSettings").addEventListener("click", () => {
 
 loadQueueStats();
 setInterval(loadQueueStats, 3000);
+
+// The version comes from the manifest, so it can never be out of date
+document.getElementById("version").textContent = `v${browser.runtime.getManifest().version}`;
