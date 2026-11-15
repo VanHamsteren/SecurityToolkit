@@ -275,6 +275,7 @@ $("openQueue").addEventListener("click", () => {
 
 // Load saved settings
 document.addEventListener("DOMContentLoaded", async () => {
+    document.getElementById("version").textContent = browser.runtime.getManifest().version;
     try {
         const result = await browser.storage.sync.get([
             "urlscanApiKey", "urlscanVisibility", "urlscanTags", "nextdnsApiKey", "vtApiKey",

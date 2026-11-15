@@ -66,5 +66,7 @@ document.getElementById("openSettings").addEventListener("click", () => {
     window.close();
 });
 
+document.getElementById("version").textContent = `Version ${browser.runtime.getManifest().version}`;
+
 loadQueueStats();
 setInterval(loadQueueStats, 3000);

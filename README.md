@@ -122,7 +122,8 @@ Domain Age (RDAP) and Pivot Lookups require no account or API key.
 
 Right-click any link (or selected text) → **Security Analysis**:
 
-- **URLScan.io** → Scan Now, or Add to Scan Queue / Process Queue for batches
+- **Add to scan queue / Scan the queue** → batch links for urlscan.io, works on links and selected text
+- **URLScan.io** → Scan Now
 - **VirusTotal** → Scan Now
 - **AbuseIPDB** → Check IP Reputation
 - **NextDNS** → Add to Blocklist / Allowlist (per profile or all)
@@ -193,7 +194,12 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.7.8 (Current)
+### Version 1.7.9 (Current)
+- 📋 *Add to scan queue* and the queue entry now sit directly under *Security Analysis* and also appear on selected text (a URL or domain that is not a clickable link), not only on links
+- 🔢 The version number is shown in the toolbar popup again, and is read from the manifest on the settings page
+- 🔄 The queue count in the menu follows the queue page, and overlapping menu rebuilds can no longer interleave
+
+### Version 1.7.8
 - 📋 The scan queue is always reachable from the right-click menu: *Security Analysis, URLScan.io* shows *Process Queue* when links are waiting, otherwise *Open Scan Queue*
 
 ### Version 1.7.7

@@ -1,4 +1,4 @@
-/* global browser, qsStart */
+/* global browser, qsStart, qsNormalizeInput */
 /**
  * URLScan.io & NextDNS Firefox Extension - Background Service Worker
  * Handles security tool integrations and context menu management
@@ -849,7 +849,15 @@ async function saveUrlScanQueue(queue) {
  * Add URL to URLScan queue
  * @param {string} url - URL to add
  */
-async function addToUrlScanQueue(url) {
+async function addToUrlScanQueue(input) {
+    let url;
+    try {
+        // Selected text may be a bare or defanged domain; store a real URL
+        url = qsNormalizeInput(input);
+    } catch {
+        notifyError("Scan queue", `Not a valid URL or domain: ${String(input).slice(0, 80)}`);
+        return;
+    }
     try {
         const queue = await getUrlScanQueue();
 
@@ -875,9 +883,6 @@ async function addToUrlScanQueue(url) {
         await saveUrlScanQueue(queue);
         notifySuccess(`Added to scan queue (${queue.length} URLs)`);
         console.log("Added to URLScan queue:", url);
-
-        // Update context menus to show new count
-        await createContextMenus();
     } catch (error) {
         console.error("Failed to add to queue:", error);
         notifyError("Queue Error", "Failed to add URL to scan queue");
@@ -979,15 +984,41 @@ async function processUrlScanQueue() {
  */
 async function clearUrlScanQueue() {
     await saveUrlScanQueue([]);
-    await createContextMenus(); // Update menu to remove count
     notifySuccess("Queue cleared");
     console.log("URLScan queue cleared");
+}
+
+/** Title of the queue menu entry: scan when links are waiting, otherwise open */
+function queueMenuTitle(queue) {
+    const pending = queue.filter((item) => item.status === "pending").length;
+    if (pending > 0) return `🚀 Scan the queue (${pending} waiting)`;
+    return queue.length > 0 ? `📋 Open scan queue (${queue.length})` : "📋 Open scan queue (empty)";
+}
+
+// Menu changes run one after another, so overlapping rebuilds cannot interleave
+let menuChain = Promise.resolve();
+
+function createContextMenus() {
+    menuChain = menuChain.then(buildContextMenus);
+    return menuChain;
+}
+
+/** Keep the count in the queue menu entry current without rebuilding everything */
+function refreshQueueMenuTitle() {
+    menuChain = menuChain.then(async () => {
+        try {
+            await browser.contextMenus.update("urlscan-queue-open", { title: queueMenuTitle(await getUrlScanQueue()) });
+        } catch (error) {
+            console.error("Failed to update the queue menu entry:", error);
+        }
+    });
+    return menuChain;
 }
 
 /**
  * Create context menus based on available integrations
  */
-async function createContextMenus() {
+async function buildContextMenus() {
     try {
         // Remove all existing menus
         await browser.contextMenus.removeAll();
@@ -1025,18 +1056,34 @@ async function createContextMenus() {
             contexts: contexts,
         });
 
-        // Get queue count for URLScan menu
-        const queue = await getUrlScanQueue();
-        const pendingCount = queue.filter(
-            (item) => item.status === "pending",
-        ).length;
+        // Scan queue: directly under Security Analysis, for links and selected text
+        browser.contextMenus.create({
+            id: "urlscan-queue-add",
+            parentId: "security-parent",
+            title: "➕ Add to scan queue",
+            contexts: contexts,
+        });
+
+        browser.contextMenus.create({
+            id: "urlscan-queue-open",
+            parentId: "security-parent",
+            title: queueMenuTitle(await getUrlScanQueue()),
+            contexts: contexts,
+        });
+
+        browser.contextMenus.create({
+            id: "urlscan-queue-separator",
+            parentId: "security-parent",
+            type: "separator",
+            contexts: contexts,
+        });
 
         // Add URLScan.io parent menu
         browser.contextMenus.create({
             id: "urlscan-parent",
             parentId: "security-parent",
             title: "URLScan.io",
-            contexts: ["link"],
+            contexts: contexts,
             icons: {
                 16: "icons/urlscan_16.png",
             },
@@ -1047,40 +1094,8 @@ async function createContextMenus() {
             id: "urlscan-submit",
             parentId: "urlscan-parent",
             title: "🔍 Scan Now",
-            contexts: ["link"],
+            contexts: contexts,
         });
-
-        // Add "Add to Queue" option
-        browser.contextMenus.create({
-            id: "urlscan-queue-add",
-            parentId: "urlscan-parent",
-            title: "➕ Add to Scan Queue",
-            contexts: ["link"],
-        });
-
-        // Queue entry is always visible: process when something is pending, otherwise just open the page
-        browser.contextMenus.create({
-            id: "urlscan-queue-separator",
-            parentId: "urlscan-parent",
-            type: "separator",
-            contexts: ["link"],
-        });
-
-        if (pendingCount > 0) {
-            browser.contextMenus.create({
-                id: "urlscan-queue-process",
-                parentId: "urlscan-parent",
-                title: `🚀 Process Queue (${pendingCount} URL${pendingCount !== 1 ? "s" : ""})`,
-                contexts: ["link"],
-            });
-        } else {
-            browser.contextMenus.create({
-                id: "urlscan-queue-open",
-                parentId: "urlscan-parent",
-                title: queue.length > 0 ? `📋 Open Scan Queue (${queue.length})` : "📋 Open Scan Queue (empty)",
-                contexts: ["link"],
-            });
-        }
 
         // Add VirusTotal parent menu
         browser.contextMenus.create({
@@ -1371,13 +1386,10 @@ browser.contextMenus.onClicked.addListener(async (info) => {
         console.log("Adding to scan queue:", target);
         addToUrlScanQueue(target);
     }
-    // URLScan.io - Process Queue: open the queue page, which scans and shows progress
-    else if (menuItemId === "urlscan-queue-process") {
-        browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1&autostart=1"), active: true });
-    }
-    // URLScan.io - Open the queue page without starting a scan
+    // Scan queue: start scanning when links are waiting, otherwise just open the page
     else if (menuItemId === "urlscan-queue-open") {
-        browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1"), active: true });
+        const pending = (await getUrlScanQueue()).some((item) => item.status === "pending");
+        browser.tabs.create({ url: browser.runtime.getURL(`report.html?queue=1${pending ? "&autostart=1" : ""}`), active: true });
     }
     // Domain Age (RDAP)
     else if (menuItemId === "domain-age") {
@@ -1768,7 +1780,6 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             const queue = await getUrlScanQueue();
             const filtered = queue.filter((item) => item.url !== message.url);
             await saveUrlScanQueue(filtered);
-            await createContextMenus(); // Update menu count
             sendResponse({ success: true });
         })();
         return true;
@@ -1807,6 +1818,10 @@ createContextMenus();
 
 // Listen for storage changes to update menus dynamically
 browser.storage.onChanged.addListener((changes, areaName) => {
+    // The queue page writes the queue itself, so follow storage rather than our own calls
+    if (areaName === "local" && changes.urlscanQueue) {
+        refreshQueueMenuTitle();
+    }
     if (areaName === "sync") {
         // Update notification level if changed
         if (changes.notificationLevel) {

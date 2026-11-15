@@ -886,7 +886,7 @@ function drawQueue() {
             el("button", { type: "button", class: "btn primary", id: "btnScanQueue", onclick: runQueue }, `Scan ${pending} waiting link${pending === 1 ? "" : "s"}`),
             el("span", { class: "muted" }, "Each link is sent to urlscan.io, 2.5 seconds apart to respect its rate limit."));
     } else {
-        control = el("p", { class: "muted" }, items.length ? "Nothing waiting. Right-click more links and choose Add to scan queue." : "The queue is empty. Right-click a link, choose Security Analysis > URLScan.io > Add to scan queue.");
+        control = el("p", { class: "muted" }, items.length ? "Nothing waiting. Right-click a link or selected text and choose Security Analysis > Add to scan queue." : "The queue is empty. Right-click a link or selected text and choose Security Analysis > Add to scan queue.");
     }
 
     const blockNodes = queueState.cands && queueState.cands.length && !queueState.running
