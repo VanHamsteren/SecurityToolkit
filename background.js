@@ -1058,19 +1058,26 @@ async function createContextMenus() {
             contexts: ["link"],
         });
 
-        // Add "Process Queue" option (if queue has items)
-        if (pendingCount > 0) {
-            browser.contextMenus.create({
-                id: "urlscan-queue-separator",
-                parentId: "urlscan-parent",
-                type: "separator",
-                contexts: ["link"],
-            });
+        // Queue entry is always visible: process when something is pending, otherwise just open the page
+        browser.contextMenus.create({
+            id: "urlscan-queue-separator",
+            parentId: "urlscan-parent",
+            type: "separator",
+            contexts: ["link"],
+        });
 
+        if (pendingCount > 0) {
             browser.contextMenus.create({
                 id: "urlscan-queue-process",
                 parentId: "urlscan-parent",
                 title: `🚀 Process Queue (${pendingCount} URL${pendingCount !== 1 ? "s" : ""})`,
+                contexts: ["link"],
+            });
+        } else {
+            browser.contextMenus.create({
+                id: "urlscan-queue-open",
+                parentId: "urlscan-parent",
+                title: queue.length > 0 ? `📋 Open Scan Queue (${queue.length})` : "📋 Open Scan Queue (empty)",
                 contexts: ["link"],
             });
         }
@@ -1367,6 +1374,10 @@ browser.contextMenus.onClicked.addListener(async (info) => {
     // URLScan.io - Process Queue: open the queue page, which scans and shows progress
     else if (menuItemId === "urlscan-queue-process") {
         browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1&autostart=1"), active: true });
+    }
+    // URLScan.io - Open the queue page without starting a scan
+    else if (menuItemId === "urlscan-queue-open") {
+        browser.tabs.create({ url: browser.runtime.getURL("report.html?queue=1"), active: true });
     }
     // Domain Age (RDAP)
     else if (menuItemId === "domain-age") {
