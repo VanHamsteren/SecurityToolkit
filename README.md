@@ -193,7 +193,10 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.7.7 (Current)
+### Version 1.7.8 (Current)
+- 📋 The scan queue is always reachable from the right-click menu: *Security Analysis, URLScan.io* shows *Process Queue* when links are waiting, otherwise *Open Scan Queue*
+
+### Version 1.7.7
 - 🌳 urlscan.io card now shows the **full domain chain**: every domain the page redirected through or loaded, as a tree under the host that led to it
 - 🛡️ Step 4 offers those chain domains for NextDNS blocking (popular sites and shared platforms are still never suggested; ticked when urlscan.io flags the scan)
 
