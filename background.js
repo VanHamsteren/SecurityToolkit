@@ -818,6 +818,73 @@ async function fetchNextDnsProfiles() {
 }
 
 /**
+ * Every domain on the NextDNS denylist of every profile. The API pages its answers, so the
+ * cursor is followed until it is null; reading only the first page misses most of a long list.
+ * @returns {Promise<string[]>}
+ */
+async function fetchDenylistPages(profileId, apiKey) {
+    const domains = [];
+    let cursor = null;
+    let limit = 500;
+    for (let page = 0; page < 100; page++) {
+        const url = new URL(`https://api.nextdns.io/profiles/${encodeURIComponent(profileId)}/denylist`);
+        if (limit) url.searchParams.set("limit", String(limit));
+        if (cursor) url.searchParams.set("cursor", cursor);
+        const r = await fetch(url.href, { headers: { "X-Api-Key": apiKey } });
+        if (r.status === 400 && limit) {
+            limit = null; // this endpoint does not accept that page size: use its default
+            page--;
+            continue;
+        }
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const body = await r.json();
+        for (const d of body.data || []) {
+            if (d && d.id && d.active !== false) domains.push(String(d.id).toLowerCase().replace(/^\*\./, ""));
+        }
+        cursor = body.meta?.pagination?.cursor || null;
+        if (!cursor) break;
+    }
+    return domains;
+}
+
+// Denylist cache: only a successful read is cached, so one failed call never hides the list for minutes
+let denylistCache = { at: 0, ok: false, counts: {}, profiles: 0 };
+let denylistLoading = null;
+
+/**
+ * How many NextDNS profiles have each domain on their denylist.
+ * @returns {Promise<{ok: boolean, counts: object, profiles: number, error?: string}>}
+ */
+function getKnownBlockedDomains(force = false) {
+    if (!force && denylistCache.ok && Date.now() - denylistCache.at < 120000) return Promise.resolve(denylistCache);
+    if (denylistLoading) return denylistLoading;
+    denylistLoading = (async () => {
+        try {
+            const { nextdnsApiKey: apiKey } = await browser.storage.sync.get("nextdnsApiKey");
+            if (!apiKey) return { ok: false, counts: {}, profiles: 0, error: "NextDNS is not set up" };
+            let profiles = nextDnsProfiles;
+            if (!profiles.length) {
+                profiles = await fetchNextDnsProfiles();
+                if (profiles.length) nextDnsProfiles = profiles;
+            }
+            if (!profiles.length) return { ok: false, counts: {}, profiles: 0, error: "No NextDNS profiles found" };
+            const counts = {};
+            for (const p of profiles) {
+                for (const d of new Set(await fetchDenylistPages(p.id, apiKey))) counts[d] = (counts[d] || 0) + 1;
+            }
+            denylistCache = { at: Date.now(), ok: true, counts, profiles: profiles.length };
+            return denylistCache;
+        } catch (error) {
+            console.error("Failed to load the NextDNS denylist:", error);
+            return { ok: false, counts: {}, profiles: 0, error: error.message };
+        } finally {
+            denylistLoading = null;
+        }
+    })();
+    return denylistLoading;
+}
+
+/**
  * Get URLScan queue from storage
  * @returns {Array} Queue items
  */
@@ -882,6 +949,13 @@ async function addToUrlScanQueue(input) {
 
         await saveUrlScanQueue(queue);
         notifySuccess(`Added to scan queue (${queue.length} URLs)`);
+        // Always confirm on the toolbar button, whatever the notification level is
+        const pending = queue.filter((i) => i.status === "pending").length;
+        browser.action.setBadgeBackgroundColor({ color: "#0F746C" });
+        browser.action.setBadgeText({ text: String(pending) });
+        setTimeout(() => {
+            if (activeJobs === 0) browser.action.setBadgeText({ text: "" });
+        }, 3000);
         console.log("Added to URLScan queue:", url);
     } catch (error) {
         console.error("Failed to add to queue:", error);
@@ -991,8 +1065,8 @@ async function clearUrlScanQueue() {
 /** Title of the queue menu entry: scan when links are waiting, otherwise open */
 function queueMenuTitle(queue) {
     const pending = queue.filter((item) => item.status === "pending").length;
-    if (pending > 0) return `🚀 Scan the queue (${pending} waiting)`;
-    return queue.length > 0 ? `📋 Open scan queue (${queue.length})` : "📋 Open scan queue (empty)";
+    if (pending > 0) return `🚀 Analyse the queue (${pending} link${pending !== 1 ? "s" : ""})`;
+    return queue.length > 0 ? `📋 Open the queue (${queue.length})` : "📋 Open the queue (empty)";
 }
 
 // Menu changes run one after another, so overlapping rebuilds cannot interleave
@@ -1038,7 +1112,7 @@ async function buildContextMenus() {
         browser.contextMenus.create({
             id: "quickscan",
             parentId: "security-parent",
-            title: "🔎 Analyse link (all tools)",
+            title: "🔎 Analyse link now (all tools)",
             contexts: contexts,
         });
 
@@ -1049,21 +1123,15 @@ async function buildContextMenus() {
             contexts: contexts,
         });
 
-        browser.contextMenus.create({
-            id: "quickscan-separator",
-            parentId: "security-parent",
-            type: "separator",
-            contexts: contexts,
-        });
-
-        // Scan queue: directly under Security Analysis, for links and selected text
+        // Collect now, analyse later: nothing starts until the queue page is run
         browser.contextMenus.create({
             id: "urlscan-queue-add",
             parentId: "security-parent",
-            title: "➕ Add to scan queue",
+            title: "➕ Add to queue (analyse later)",
             contexts: contexts,
         });
 
+        // Always present, so the queue page is reachable when nothing is waiting too
         browser.contextMenus.create({
             id: "urlscan-queue-open",
             parentId: "security-parent",
@@ -1072,7 +1140,7 @@ async function buildContextMenus() {
         });
 
         browser.contextMenus.create({
-            id: "urlscan-queue-separator",
+            id: "quickscan-separator",
             parentId: "security-parent",
             type: "separator",
             contexts: contexts,
@@ -1754,6 +1822,13 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         })();
         return true; // Keep message channel open for async response
+    }
+
+    if (message.action === "getKnownBlockedDomains") {
+        getKnownBlockedDomains(!!message.force).then((res) => sendResponse({
+            success: res.ok, counts: res.counts, profiles: res.profiles, error: res.error || null,
+        }));
+        return true;
     }
 
     if (message.action === "fetchProfiles") {

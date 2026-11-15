@@ -511,3 +511,5 @@ details.fold[open] > summary {
     border: 1px solid currentColor;
     font-size: 11px;
 }
+
+.cand.blocked { opacity: .6; }

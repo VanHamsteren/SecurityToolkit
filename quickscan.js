@@ -1,4 +1,4 @@
-/* global browser, notifyError, sendToUrlscan, sendToVirusTotal, addToNextDnsList, nextDnsProfiles */
+/* global browser, notifyError, sendToUrlscan, sendToVirusTotal, addToNextDnsList, nextDnsProfiles, denylistCache */
 /**
  * Security Toolkit - Quick Scan engine
  *
@@ -26,7 +26,7 @@ const QS_CONFIG = {
     MAX_BODY_BYTES: 2 * 1024 * 1024,
     FETCH_TIMEOUT_MS: 15000,
     MAX_CLIENT_HOPS: 5,
-    MAX_REPORTS: 25,
+    MAX_REPORTS: 100,
     MAX_ENRICH_HOSTS: 10,
     INDEX_KEY: "quickScanIndex",
     REPORT_PREFIX: "qs_",
@@ -1186,15 +1186,18 @@ async function qsStart(input, options = {}) {
     }
     await qsSave(report);
     await qsAddToIndex(report);
-    // The page opens at once so the user sees something happening; tools to run are passed as parameters
-    const extra = new URLSearchParams();
-    if (options.run) extra.set("run", options.run);
-    if (options.focus) extra.set("focus", options.focus);
-    const qsParams = extra.toString();
-    await browser.tabs.create({
-        url: browser.runtime.getURL(`report.html?id=${report.id}${qsParams ? `&${qsParams}` : ""}`),
-        active: true,
-    });
+    // The page opens at once so the user sees something happening; tools to run are passed as parameters.
+    // The scan queue passes openTab: false because it shows the results itself.
+    if (options.openTab !== false) {
+        const extra = new URLSearchParams();
+        if (options.run) extra.set("run", options.run);
+        if (options.focus) extra.set("focus", options.focus);
+        const qsParams = extra.toString();
+        await browser.tabs.create({
+            url: browser.runtime.getURL(`report.html?id=${report.id}${qsParams ? `&${qsParams}` : ""}`),
+            active: true,
+        });
+    }
 
     if (report.url) {
         const hosts = [report.url.host, ...report.url.embeddedUrls.map((u) => {
@@ -1311,7 +1314,7 @@ if (typeof browser !== "undefined" && browser.runtime?.onMessage) {
                 qsRunLive(msg.id, msg.options || {});
                 return Promise.resolve({ ok: true });
             case "qsRescanOffline":
-                return qsStart(msg.url, { run: msg.run, focus: msg.focus }).then((id) => ({ ok: !!id, id }));
+                return qsStart(msg.url, { run: msg.run, focus: msg.focus, openTab: msg.openTab }).then((id) => ({ ok: !!id, id }));
             case "qsBlockCandidatesFor":
                 return Promise.resolve({ candidates: qsBlockCandidatesForLinks(msg.links) });
             case "qsBlockCandidatesForChain":
@@ -1360,6 +1363,7 @@ async function qsBlockDomains(domains, profileId) {
             }
         }
     }
+    if (results.some((r) => r.ok) && typeof denylistCache !== "undefined") denylistCache.at = 0; // read the list again
     return { results };
 }
 

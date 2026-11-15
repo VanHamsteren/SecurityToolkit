@@ -122,7 +122,7 @@ Domain Age (RDAP) and Pivot Lookups require no account or API key.
 
 Right-click any link (or selected text) → **Security Analysis**:
 
-- **Add to scan queue / Scan the queue** → batch links for urlscan.io, works on links and selected text
+- **Add to queue (analyse later) / Analyse the queue** → collect links, then analyse them in one go with the tools you choose
 - **URLScan.io** → Scan Now
 - **VirusTotal** → Scan Now
 - **AbuseIPDB** → Check IP Reputation
@@ -195,9 +195,16 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 ## Changelog
 
 ### Version 1.7.9 (Current)
-- 📋 *Add to scan queue* and the queue entry now sit directly under *Security Analysis* and also appear on selected text (a URL or domain that is not a clickable link), not only on links
-- 🔢 The version number is shown in the toolbar popup again, and is read from the manifest on the settings page
-- 🔄 The queue count in the menu follows the queue page, and overlapping menu rebuilds can no longer interleave
+- ♻️ Restores everything from the published 1.7.2 to 1.7.6 releases that 1.7.7 dropped by accident (1.7.7 was built from older source):
+  - the toolkit's own queue directly under *Security Analysis*: *Add to queue (analyse later)* and *Analyse the queue*, for links and selected text
+  - the queue page runs Quick Scan plus the tools you tick (urlscan.io, AbuseIPDB, VirusTotal), in batches, with earlier runs kept apart
+  - the version badge in the toolbar popup, read from the manifest
+  - domains already on a NextDNS denylist are marked in the block step
+  - a warning when urlscan.io was redirected to a well-known harmless site (cloaking)
+  - 100 recent analyses instead of 25
+- 🌳 Keeps the urlscan.io domain chain tree from 1.7.0
+- 📋 The queue entry stays in the menu when nothing is waiting (*Open the queue*), and its count follows the queue page
+- 🔤 *URLScan.io, Scan Now* also works on selected text
 
 ### Version 1.7.8
 - 📋 The scan queue is always reachable from the right-click menu: *Security Analysis, URLScan.io* shows *Process Queue* when links are waiting, otherwise *Open Scan Queue*

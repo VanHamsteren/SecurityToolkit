@@ -81,9 +81,11 @@ body.popup {
     font-size: 13px;
 }
 
-.version {
-    margin: 0;
-    text-align: center;
+.popup-head .version {
+    margin-left: auto;
     font-size: 12px;
     color: var(--muted);
+    background: var(--soft);
+    border-radius: 999px;
+    padding: 2px 8px;
 }

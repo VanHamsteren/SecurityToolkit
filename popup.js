@@ -66,7 +66,8 @@ document.getElementById("openSettings").addEventListener("click", () => {
     window.close();
 });
 
-document.getElementById("version").textContent = `Version ${browser.runtime.getManifest().version}`;
-
 loadQueueStats();
 setInterval(loadQueueStats, 3000);
+
+// The version comes from the manifest, so it can never be out of date
+document.getElementById("version").textContent = `v${browser.runtime.getManifest().version}`;
