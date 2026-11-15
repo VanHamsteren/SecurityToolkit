@@ -58,6 +58,11 @@ function el(tag, attrs = {}, ...children) {
     return n;
 }
 
+/** Show these nodes as the page content; empty slots (null) are left out */
+function mount(...nodes) {
+    app.replaceChildren(...nodes.flat().filter(Boolean));
+}
+
 const fmtDate = (v) => {
     if (!v) return "";
     const d = new Date(v);
@@ -850,7 +855,7 @@ async function renderHistory() {
     const { quickScanIndex: index = [] } = await browser.storage.local.get("quickScanIndex");
     const { urlscanQueue: queue = [] } = await browser.storage.local.get("urlscanQueue");
     const pending = queue.filter((i) => i.status === "pending").length;
-    app.replaceChildren(
+    mount(
         el("div", { class: "section-head" }, el("div", { class: "eyebrow" }, "Security Toolkit"), el("h2", {}, "Recent analyses"),
             el("p", {}, "Right-click any link, choose Security Analysis and then Analyse link. The result opens here, with one clear flow: analyse, check, look deeper, decide.")),
         queue.length ? el("div", { class: "card", style: "margin-bottom:16px" },
@@ -908,6 +913,36 @@ async function saveQueue({ replace = false } = {}) {
     await browser.storage.local.set({ [QUEUE_KEY]: queueState.items });
 }
 
+// Links whose domain is already blocked in every NextDNS profile are skipped, unless this is ticked
+const RESCAN_KEY = "queueRescanBlocked";
+queueState.rescanBlocked = false;
+
+/** Put links that were skipped as "already blocked" back in line */
+function requeueSkipped() {
+    let n = 0;
+    for (const it of queueState.items) {
+        if (!it.blocked) continue;
+        it.blocked = false;
+        it.status = "pending";
+        n++;
+    }
+    return n;
+}
+
+function rescanOption() {
+    const input = el("input", {
+        type: "checkbox", id: "qRescanBlocked", checked: queueState.rescanBlocked, disabled: queueState.running,
+        onchange: async (e) => {
+            queueState.rescanBlocked = e.target.checked;
+            await browser.storage.local.set({ [RESCAN_KEY]: queueState.rescanBlocked });
+            if (queueState.rescanBlocked && requeueSkipped()) await saveQueue({ replace: true });
+            drawQueue();
+        },
+    });
+    return el("label", { for: "qRescanBlocked", style: "display:flex;gap:8px;align-items:center;font-size:14px;margin-top:12px" }, input,
+        "Also analyse links whose domain is already on my NextDNS denylist");
+}
+
 const BATCH_SIZE = 20;
 const WORKERS = 3;
 queueState.tools = { urlscan: true, abuseipdb: true, virustotal: false }; // VirusTotal is slow (4 a minute), so opt-in
@@ -927,6 +962,7 @@ function queueStatusChip(it) {
 
 function resultChips(it) {
     const chips = [];
+    if (it.denylisted) chips.push(el("span", { class: "chip chip-info" }, "Already blocked in NextDNS"));
     if (it.quick) chips.push(el("span", { class: `chip chip-${it.quick.level}` }, `Quick Scan ${it.quick.score}/100`));
     if (it.age) chips.push(el("span", { class: `chip chip-${it.age.level}` }, `Domain age: ${it.age.headline}`));
     for (const t of CK.TOOLS) {
@@ -1017,9 +1053,11 @@ function drawQueue() {
             el("div", { class: "row" },
                 el("button", { type: "button", class: "btn primary", id: "btnScanQueue", onclick: runQueue }, `Analyse the next ${batch} link${batch === 1 ? "" : "s"}`),
                 el("span", { class: "muted" }, pending > batch ? `${pending} are waiting. They are done in batches of ${BATCH_SIZE} to respect the free limits of the tools.` : "All waiting links are included.")),
-            toolPicker());
+            toolPicker(), rescanOption());
     } else {
-        control = el("p", { class: "muted" }, `${items.length ? "Nothing waiting." : "The queue is empty."} ${QUEUE_ADD_HINT}`);
+        control = el("div", { class: "stack" },
+            el("p", { class: "muted" }, `${items.length ? "Nothing waiting." : "The queue is empty."} ${QUEUE_ADD_HINT}`),
+            items.some((i) => i.blocked) || queueState.rescanBlocked ? rescanOption() : null);
     }
 
     const blockNodes = queueState.cands && queueState.cands.length && !queueState.running
@@ -1028,7 +1066,7 @@ function drawQueue() {
             .concat([blockPanel(queueState.cands, { primary: true, intro: "Domains from the batch. Popular and shared platforms are never suggested." })])
         : [];
 
-    app.replaceChildren(
+    mount(
         el("div", { class: "section-head" }, el("div", { class: "eyebrow" }, "Security Toolkit"), el("h2", {}, URLSCAN_ONLY ? "urlscan.io queue" : "Scan queue"),
             el("p", {}, URLSCAN_ONLY
                 ? "Links collected for urlscan.io only. One button sends them all to urlscan.io, then you block the bad ones. "
@@ -1143,7 +1181,12 @@ async function startQueueRun(tools = selectedQueueTools()) {
     // Links whose domain is blocked in every NextDNS profile need no analysis: skip them
     queueState.note = "";
     const dl = await loadDenylist(true);
-    if (dl.ok && dl.profiles) {
+    if (queueState.rescanBlocked) {
+        // analyse them anyway, but keep telling the user they are blocked already
+        for (const it of queueState.items) {
+            if (it.status === "pending") it.denylisted = dl.ok && dl.profiles > 0 && denylistHits(hostOf(it.url), dl) >= dl.profiles;
+        }
+    } else if (dl.ok && dl.profiles) {
         let skipped = 0;
         for (const it of queueState.items) {
             if (it.status !== "pending" || denylistHits(hostOf(it.url), dl) < dl.profiles) continue;
@@ -1154,7 +1197,7 @@ async function startQueueRun(tools = selectedQueueTools()) {
             skipped++;
         }
         if (skipped) {
-            queueState.note = `${skipped} link${skipped === 1 ? " was" : "s were"} skipped because the domain is already on your NextDNS denylist.`;
+            queueState.note = `${skipped} link${skipped === 1 ? " was" : "s were"} skipped because the domain is already on your NextDNS denylist. Tick \"Also analyse links whose domain is already on my NextDNS denylist\" to analyse them anyway.`;
             await saveQueue();
         }
     }
@@ -1206,6 +1249,7 @@ async function bootQueue() {
     document.getElementById("btnMarkdown").disabled = true;
     document.getElementById("btnJson").disabled = true;
     cfg = await ckConfig();
+    queueState.rescanBlocked = Boolean((await browser.storage.local.get(RESCAN_KEY))[RESCAN_KEY]);
     await loadQueue();
     drawQueue();
     browser.storage.onChanged.addListener((changes, area) => {

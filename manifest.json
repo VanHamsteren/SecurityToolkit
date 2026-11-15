@@ -3,7 +3,7 @@
     "name": "Security Toolkit",
     "short_name": "securitytoolkit",
     "author": "Paul Rutten",
-    "version": "1.7.9",
+    "version": "1.7.10",
     "description": "Right-click a link to analyse it with the built-in Quick Scan, urlscan.io, VirusTotal and AbuseIPDB in one results page. Then block the domains in NextDNS.",
     "permissions": [
         "contextMenus",

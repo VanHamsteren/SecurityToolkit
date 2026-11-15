@@ -194,7 +194,12 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.7.9 (Current)
+### Version 1.7.10 (Current)
+- 🔁 New option on the queue page: *Also analyse links whose domain is already on my NextDNS denylist*. Ticking it puts the skipped links back in line; they keep an *Already blocked in NextDNS* label next to their verdict
+- 🐛 The queue page no longer shows a stray "null" between its sections
+- ↔️ The link column in the queue table is wider, so links wrap less
+
+### Version 1.7.9
 - ♻️ Restores everything from the published 1.7.2 to 1.7.6 releases that 1.7.7 dropped by accident (1.7.7 was built from older source):
   - the toolkit's own queue directly under *Security Analysis*: *Add to queue (analyse later)* and *Analyse the queue*, for links and selected text
   - the queue page runs Quick Scan plus the tools you tick (urlscan.io, AbuseIPDB, VirusTotal), in batches, with earlier runs kept apart
