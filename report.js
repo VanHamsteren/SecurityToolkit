@@ -1063,7 +1063,7 @@ function drawQueue() {
     const blockNodes = queueState.cands && queueState.cands.length && !queueState.running
         ? [el("div", { class: "section-head", style: "margin-top:24px" }, el("div", { class: "eyebrow" }, "Step 3"), el("h2", {}, "Decide what to block"),
             el("p", {}, "Links the checks flagged are ticked. Review them before you block."))]
-            .concat([blockPanel(queueState.cands, { primary: true, intro: "Domains from the batch. Popular and shared platforms are never suggested." })])
+            .concat([blockPanel(queueState.cands, { primary: true, intro: "Domains from the batch, including every domain urlscan.io saw while loading each link. Popular and shared platforms are never suggested." })])
         : [];
 
     mount(
@@ -1146,6 +1146,8 @@ async function processItem(it, tools) {
         drawQueue();
     }));
 
+    // Domains urlscan.io saw for this link, kept for the block step
+    it.chain = (states.urlscan?.chain || []).map((n) => n.domain);
     const overall = ckOverall(report, states);
     const age = ckDomainAge(report);
     it.quick = { score: report.verdict?.score ?? 0, level: report.verdict?.level || "clean" };
@@ -1235,6 +1237,7 @@ async function startQueueRun(tools = selectedQueueTools()) {
             action: "qsBlockCandidatesFor",
             links: batch.filter((i) => i.status === "completed" && !i.blocked).map((i) => ({
                 url: i.target || i.url, flagged: i.result && (i.result.level === "high" || i.result.level === "medium"),
+                chain: i.chain || [],
             })),
         });
         queueState.cands = res?.candidates || [];

@@ -194,7 +194,10 @@ Note: Firefox MV3 treats host permissions as opt-in. The Test Connection buttons
 
 ## Changelog
 
-### Version 1.7.10 (Current)
+### Version 1.7.11 (Current)
+- 🌳 The block step of both queues now also lists every domain from the urlscan.io domain chain of each link, as the single-link analysis already did. Domains from a flagged link are ticked; popular sites and shared platforms are still left out
+
+### Version 1.7.10
 - 🔁 New option on the queue page: *Also analyse links whose domain is already on my NextDNS denylist*. Ticking it puts the skipped links back in line; they keep an *Already blocked in NextDNS* label next to their verdict
 - 🐛 The queue page no longer shows a stray "null" between its sections
 - ↔️ The link column in the queue table is wider, so links wrap less

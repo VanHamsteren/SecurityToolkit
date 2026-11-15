@@ -1133,16 +1133,19 @@ function qsBlockCandidatesForLinks(links) {
             continue;
         }
         const fake = { url: { host }, verdict: { score: l.flagged ? 50 : 0 }, live: null };
-        for (const c of qsBlockCandidates(fake)) {
+        const merge = (c, reasons) => {
             const prev = merged.get(c.domain);
-            const reasons = l.flagged ? ["flagged by urlscan.io"] : ["in the scan queue"];
             if (prev) {
                 prev.checked = prev.checked || c.checked;
                 reasons.forEach((r) => prev.reasons.includes(r) || prev.reasons.push(r));
             } else {
-                merged.set(c.domain, { domain: c.domain, reasons, checked: c.checked });
+                merged.set(c.domain, { domain: c.domain, reasons: [...reasons], checked: c.checked });
             }
-        }
+        };
+        for (const c of qsBlockCandidates(fake)) merge(c, l.flagged ? ["flagged by urlscan.io"] : ["in the scan queue"]);
+        // Every domain urlscan.io saw while loading this link
+        const chain = (l.chain || []).map((domain) => ({ domain }));
+        for (const c of qsBlockCandidatesForChain(chain, l.flagged)) merge(c, c.reasons);
     }
     return [...merged.values()].sort((a, b) => Number(b.checked) - Number(a.checked) || a.domain.localeCompare(b.domain));
 }
