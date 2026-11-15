@@ -1,5 +1,9 @@
 # Security Toolkit (Firefox extension)
 
+## After every change to the extension
+
+Always finish with a new build, without being asked: bump the version in `manifest.json`, build the `.xpi` (see Releasing), commit and push it, and send the `.xpi` file to the user in the chat so they can upload it to addons.mozilla.org straight away.
+
 ## After every build
 
 Each time a new `.xpi` is built, also write these two texts and give them to the user in the chat, ready to paste into addons.mozilla.org (AMO):
