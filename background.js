@@ -753,6 +753,15 @@ async function addToNextDnsList(
                 `NextDNS: ${alreadyListed ? "Already had" : "Successfully added"} ${id} in ${listType} of profile ${profileId}`,
             );
         } else {
+            const full = apiErrors.find((e) => e.code === "listLimitExceeded");
+            if (full) {
+                console.error("NextDNS API Error:", response.status, bodyText);
+                throw new Error(
+                    `the NextDNS ${full.list || listType} of profile "${profileName}" is full` +
+                        `${full.limit ? ` (limit ${full.limit} entries, inactive ones included)` : ""}. ` +
+                        "Remove entries in NextDNS and try again",
+                );
+            }
             const reason =
                 apiErrors
                     .map((e) => [e.code, e.detail].filter(Boolean).join(": "))
