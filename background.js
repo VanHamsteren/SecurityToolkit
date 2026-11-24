@@ -702,6 +702,13 @@ async function addToNextDnsList(
             `Calling NextDNS API: POST ${endpoint} with domain: ${domain}`,
         );
 
+        // NextDNS wants a bare lowercase domain: no trailing dot, wildcard or whitespace.
+        const id = String(domain || "")
+            .trim()
+            .toLowerCase()
+            .replace(/^\*\./, "")
+            .replace(/^\.+|\.+$/g, "");
+
         const response = await fetch(endpoint, {
             method: "POST",
             headers: {
@@ -709,36 +716,52 @@ async function addToNextDnsList(
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                id: domain,
+                id,
                 active: true,
             }),
         });
 
         console.log(`NextDNS API response: ${response.status}`);
 
-        if (response.ok || response.status === 201 || response.status === 204) {
+        // The API reports problems as {"errors":[{code, detail}]}, with status 400 and,
+        // for some user errors, with status 200. Read the body either way.
+        const bodyText = await response.text().catch(() => "");
+        let apiErrors = [];
+        try {
+            const parsed = bodyText ? JSON.parse(bodyText) : null;
+            if (parsed && Array.isArray(parsed.errors)) apiErrors = parsed.errors;
+        } catch (e) {
+            // Not JSON: fall back to the raw text below.
+        }
+
+        // An entry that is already on the list is what the user asked for, not a failure.
+        const alreadyListed =
+            apiErrors.length > 0 &&
+            apiErrors.every((e) => /duplicate|exists/i.test(String(e.code || "")));
+
+        if ((response.ok && apiErrors.length === 0) || alreadyListed) {
             const listName =
                 listType === "denylist" ? "blocklist" : "allowlist";
             if (!silent) {
                 notifySuccess(
-                    `NextDNS: Added "${domain}" to ${listName} in profile "${profileName}"`,
+                    alreadyListed
+                        ? `NextDNS: "${id}" is already on the ${listName} in profile "${profileName}"`
+                        : `NextDNS: Added "${id}" to ${listName} in profile "${profileName}"`,
                 );
             }
             console.log(
-                `NextDNS: Successfully added ${domain} to ${listType} in profile ${profileId}`,
+                `NextDNS: ${alreadyListed ? "Already had" : "Successfully added"} ${id} in ${listType} of profile ${profileId}`,
             );
         } else {
-            const errorText = await response
-                .text()
-                .catch(() => "Unknown error");
-            if (!silent) {
-                notifyError(
-                    `NextDNS API Error: ${response.status}`,
-                    errorText || "Failed to add domain to list",
-                );
-            }
-            console.error("NextDNS API Error:", response.status, errorText);
-            throw new Error(`API Error ${response.status}`);
+            const reason =
+                apiErrors
+                    .map((e) => [e.code, e.detail].filter(Boolean).join(": "))
+                    .filter(Boolean)
+                    .join("; ") || bodyText.slice(0, 200);
+            console.error("NextDNS API Error:", response.status, bodyText);
+            throw new Error(
+                `API Error ${response.status}${reason ? `: ${reason}` : ""}`,
+            );
         }
     } catch (error) {
         console.error("NextDNS unexpected error:", error);
